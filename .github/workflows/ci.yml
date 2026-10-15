@@ -1,0 +1,45 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  contracts:
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Catalog, generated indexes, shared dataset and run contracts
+        run: |
+          pip install -r requirements-catalog.txt
+          python tools/generate_catalog.py --check
+          python tools/validate_contracts.py
+          python tools/check_markdown_links.py
+      - name: Example configs are valid JSON
+        run: for f in examples/*.json manifests/*.json schemas/*.json testdata/*/manifest.json testdata/*/croissant.json codemeta.json; do python -m json.tool "$f" >/dev/null; done
+
+  pytorch-app:
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: applications/pytorch-b2-checkpointed-training
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r requirements-dev.txt -e .
+      - run: python -m pytest
+
+  mlflow-app:
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: applications/mlflow-b2-model-registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt -e .
+      - run: python -m pytest

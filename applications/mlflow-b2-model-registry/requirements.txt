@@ -1,0 +1,6 @@
+mlflow>=3.11.1
+boto3>=1.36
+numpy>=1.26
+Pillow>=10
+python-dotenv>=1.0
+jsonschema>=4.18

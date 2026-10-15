@@ -1,0 +1,4 @@
+[
+  {"fileNamePrefix": "packing/", "daysFromUploadingToHiding": 7, "daysFromHidingToDeleting": 1},
+  {"fileNamePrefix": "pipelines/", "daysFromUploadingToHiding": 30, "daysFromHidingToDeleting": 7}
+]

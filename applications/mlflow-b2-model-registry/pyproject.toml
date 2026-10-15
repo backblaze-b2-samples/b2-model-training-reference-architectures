@@ -1,0 +1,26 @@
+[project]
+name = "mlflow-b2-model-registry"
+version = "0.1.0"
+description = "MLflow tracking and model registry with artifacts on Backblaze B2 and event-driven model registration"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Backblaze, Inc."}]
+keywords = ["backblaze-b2", "mlflow", "model-registry", "model-training", "s3-compatible"]
+requires-python = ">=3.10"
+dependencies = ["mlflow>=3.11.1", "boto3>=1.36", "numpy>=1.26", "Pillow>=10", "python-dotenv>=1.0", "jsonschema>=4.18"]
+
+[project.urls]
+Documentation = "https://www.backblaze.com/docs/cloud-storage-ai-machine-learning"
+"B2 Documentation" = "https://www.backblaze.com/docs/cloud-storage"
+"MLflow B2 artifact store" = "https://mlflow.org/docs/latest/self-hosting/architecture/artifact-store/"
+
+[project.scripts]
+mlflow-b2 = "mlflow_b2.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["live: needs real B2 credentials and RUN_B2_LIVE_TESTS=1"]

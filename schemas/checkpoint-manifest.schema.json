@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:backblaze:b2-model-training-reference-architectures:checkpoint-manifest:1",
+  "title": "Training checkpoint manifest",
+  "description": "Written last under checkpoints/<run>/step-<step>/. A checkpoint without this manifest is incomplete and must not be resumed from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "step",
+    "epoch",
+    "format",
+    "framework",
+    "dataset",
+    "world_size",
+    "metrics",
+    "files",
+    "fingerprint",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "run_id": {
+      "$ref": "#/$defs/name"
+    },
+    "step": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "format": {
+      "enum": [
+        "torch.distributed.checkpoint",
+        "torch.save",
+        "safetensors"
+      ]
+    },
+    "framework": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "dataset": {
+      "$ref": "#/$defs/datasetPin"
+    },
+    "world_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "files": {
+      "$ref": "#/$defs/files"
+    },
+    "fingerprint": {
+      "description": "SHA-256 over the sorted lines '<path>:<sha256>' of every entry in files, joined with newlines",
+      "$ref": "#/$defs/sha256"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "datasetPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9._-]+@[a-z0-9._-]+$"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*//)[A-Za-z0-9._/-]+$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8
+moto[s3]>=5
+jsonschema>=4.18

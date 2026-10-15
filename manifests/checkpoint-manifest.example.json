@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "shapes-run-001",
+  "step": 10,
+  "epoch": 1,
+  "format": "torch.distributed.checkpoint",
+  "framework": {
+    "name": "pytorch",
+    "version": "2.14.1"
+  },
+  "dataset": {
+    "id": "synthetic-shapes@v1",
+    "fingerprint": "ba33c6841768372e4450f87fb48079e9a30593d25c1a22e8cab6784e05fab36e"
+  },
+  "world_size": 1,
+  "metrics": {
+    "train_loss": 1.1093888759613038,
+    "val_loss": 1.3411595821380615,
+    "val_accuracy": 0.3125
+  },
+  "files": [
+    {
+      "path": ".metadata",
+      "size": 8060,
+      "sha256": "62b41aa13924a8bca0a1f0b25546e1b5747402e660eb98751898fb0fd3c69691"
+    },
+    {
+      "path": "__0_0.distcp",
+      "size": 120285,
+      "sha256": "f3b962c0d81c723018870487afd3b5ac7dea4391558306072f21302692d0970f"
+    }
+  ],
+  "fingerprint": "ae95a1a3eb857bac7b50b41c1f9ac389ccf9879e8c15ce0b274b2e6790ae3a61",
+  "created_at": "2026-10-15T04:05:15Z"
+}

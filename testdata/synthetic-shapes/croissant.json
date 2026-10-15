@@ -1,0 +1,136 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dct": "http://purl.org/dc/terms/",
+    "sc": "https://schema.org/"
+  },
+  "@type": "sc:Dataset",
+  "name": "Synthetic Shapes Classification Dataset",
+  "description": "96 deterministic 32x32 PNG images of 4 shape classes in WebDataset tar shards, for testing B2 training-data streaming, checkpointing, and experiment tracking.",
+  "dct:conformsTo": "http://mlcommons.org/croissant/1.0",
+  "version": "v1",
+  "license": "https://spdx.org/licenses/MIT.html",
+  "url": "https://www.backblaze.com/docs/cloud-storage-ai-machine-learning",
+  "creator": {
+    "@type": "sc:Organization",
+    "name": "Backblaze, Inc.",
+    "url": "https://www.backblaze.com/"
+  },
+  "datePublished": "2026-10-14",
+  "keywords": [
+    "synthetic",
+    "image classification",
+    "WebDataset",
+    "Backblaze B2"
+  ],
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "train-000000",
+      "name": "train-000000.tar",
+      "contentUrl": "shards/train-000000.tar",
+      "contentSize": "71680 B",
+      "encodingFormat": "application/x-tar",
+      "sha256": "d47ba8cd4901e582272b9140c0026f3885a44e860bb212dd1ea0b5e2dc82ae7c"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "train-000001",
+      "name": "train-000001.tar",
+      "contentUrl": "shards/train-000001.tar",
+      "contentSize": "71680 B",
+      "encodingFormat": "application/x-tar",
+      "sha256": "5af590aca330828a6638aabad09b37d4b92ef8521fb7f0c23544d93fa3978e74"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "train-000002",
+      "name": "train-000002.tar",
+      "contentUrl": "shards/train-000002.tar",
+      "contentSize": "71680 B",
+      "encodingFormat": "application/x-tar",
+      "sha256": "e578293c6945ddb56e9652c328b78b8569e8ff74c17d03891a39f8d58f1fb1e5"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "train-000003",
+      "name": "train-000003.tar",
+      "contentUrl": "shards/train-000003.tar",
+      "contentSize": "71680 B",
+      "encodingFormat": "application/x-tar",
+      "sha256": "e746a92a38b311a02d64e8b3f2ffcbdad667920f0ad604a2e43a6af7307e8948"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "val-000000",
+      "name": "val-000000.tar",
+      "contentUrl": "shards/val-000000.tar",
+      "contentSize": "51200 B",
+      "encodingFormat": "application/x-tar",
+      "sha256": "af558dbe4cafa5a8a34077e83ea433b0443fcc24dc6d0d2cd1d0e8252e6d6f9e"
+    },
+    {
+      "@type": "cr:FileSet",
+      "@id": "samples",
+      "name": "samples",
+      "containedIn": [
+        {
+          "@id": "train-000000"
+        },
+        {
+          "@id": "train-000001"
+        },
+        {
+          "@id": "train-000002"
+        },
+        {
+          "@id": "train-000003"
+        },
+        {
+          "@id": "val-000000"
+        }
+      ],
+      "encodingFormat": "image/png",
+      "includes": "*.png"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "images",
+      "name": "images",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "images/image",
+          "name": "image",
+          "dataType": "sc:ImageObject",
+          "source": {
+            "fileSet": {
+              "@id": "samples"
+            },
+            "extract": {
+              "fileProperty": "content"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "images/key",
+          "name": "key",
+          "dataType": "sc:Text",
+          "source": {
+            "fileSet": {
+              "@id": "samples"
+            },
+            "extract": {
+              "fileProperty": "filename"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

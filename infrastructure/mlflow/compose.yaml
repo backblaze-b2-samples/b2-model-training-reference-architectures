@@ -1,0 +1,54 @@
+# MLflow tracking server: metadata in PostgreSQL (never on B2), artifacts on B2 via b2://.
+# Pick one artifact mode with COMPOSE_PROFILES in .env: "proxy" (default) or "direct". See README.md.
+name: mlflow-b2
+
+x-mlflow: &mlflow
+  image: ghcr.io/mlflow/mlflow:v3.17.1-full  # -full adds boto3 and psycopg2; b2:// needs MLflow >= 3.11.1
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+  ports:
+    - "127.0.0.1:${MLFLOW_PORT:-5000}:5000"
+
+x-mlflow-env: &mlflow-env
+  MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://mlflow:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/mlflow
+  MLFLOW_SERVER_ALLOWED_HOSTS: ${MLFLOW_ALLOWED_HOSTS:-localhost:*,127.0.0.1:*,mlflow:*}
+  AWS_ACCESS_KEY_ID: ${B2_APPLICATION_KEY_ID:?set B2_APPLICATION_KEY_ID in .env}
+  AWS_SECRET_ACCESS_KEY: ${B2_APPLICATION_KEY:?set B2_APPLICATION_KEY in .env}
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_DB: mlflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
+      interval: 5s
+      retries: 20
+
+  mlflow-proxy:
+    <<: *mlflow
+    profiles: [proxy]
+    hostname: mlflow
+    environment:
+      <<: *mlflow-env
+      MLFLOW_ARTIFACTS_DESTINATION: b2://${B2_BUCKET_NAME:?set B2_BUCKET_NAME in .env}@s3.${B2_REGION:?set B2_REGION in .env}.backblazeb2.com/${B2_MLFLOW_PREFIX:-mlflow}
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--serve-artifacts"]
+
+  mlflow-direct:
+    <<: *mlflow
+    profiles: [direct]
+    hostname: mlflow
+    environment:
+      <<: *mlflow-env
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: b2://${B2_BUCKET_NAME:?set B2_BUCKET_NAME in .env}@s3.${B2_REGION:?set B2_REGION in .env}.backblazeb2.com/${B2_MLFLOW_PREFIX:-mlflow}
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--no-serve-artifacts"]
+
+volumes:
+  pgdata:

@@ -1,0 +1,69 @@
+"""Env-driven B2 + MLflow config. Secrets never appear in repr or error messages."""
+from __future__ import annotations
+
+import os
+import re
+import stat
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from urllib.parse import urlparse
+
+from dotenv import load_dotenv
+
+REQUIRED = ("B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME", "B2_REGION")
+B2_HOST = re.compile(r"^s3\.[a-z0-9-]+\.backblazeb2\.com$")
+
+
+class ConfigError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Config:
+    key_id: str = field(repr=False)
+    key: str = field(repr=False)
+    bucket: str
+    region: str
+    endpoint: str
+    tracking_uri: str = "sqlite:///mlflow.db"
+    prefix: str = "mlflow"
+    event_secret: str = field(default="", repr=False)
+
+    @property
+    def host(self) -> str:
+        host = urlparse(self.endpoint).hostname or ""
+        # MLflow's b2 repository derives the region from this host form.
+        if not B2_HOST.match(host):
+            raise ConfigError("B2_ENDPOINT must look like https://s3.<region>.backblazeb2.com")
+        return host
+
+    def b2_uri(self, key: str = "") -> str:
+        return f"b2://{self.bucket}@{self.host}/{key}"
+
+    @property
+    def artifact_root(self) -> str:
+        return self.b2_uri(self.prefix)
+
+
+def load(env_file: str = ".env") -> Config:
+    """Load .env (if present) then read config from the environment."""
+    path = Path(env_file)
+    if path.exists():
+        if path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+            print(f"warning: {env_file} is group/world accessible; chmod 600", file=sys.stderr)
+        load_dotenv(path, override=False)
+    missing = [name for name in REQUIRED if not os.environ.get(name)]
+    if missing:
+        raise ConfigError(f"missing required env vars: {', '.join(missing)}")
+    region = os.environ["B2_REGION"]
+    return Config(
+        key_id=os.environ["B2_APPLICATION_KEY_ID"],
+        key=os.environ["B2_APPLICATION_KEY"],
+        bucket=os.environ["B2_BUCKET_NAME"],
+        region=region,
+        endpoint=os.environ.get("B2_ENDPOINT") or f"https://s3.{region}.backblazeb2.com",
+        tracking_uri=os.environ.get("MLFLOW_TRACKING_URI") or "sqlite:///mlflow.db",
+        prefix=(os.environ.get("B2_MLFLOW_PREFIX") or "mlflow").strip("/"),
+        event_secret=os.environ.get("B2_EVENT_SIGNING_SECRET", ""),
+    )

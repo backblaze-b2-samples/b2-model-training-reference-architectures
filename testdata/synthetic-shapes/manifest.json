@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0.0",
+  "id": "synthetic-shapes@v1",
+  "dataset": "synthetic-shapes",
+  "version": "v1",
+  "format": "webdataset",
+  "license": "MIT",
+  "provenance": {
+    "class": "synthetic",
+    "generator": "tools/build_testdata.py seed=0"
+  },
+  "classes": [
+    "circle",
+    "square",
+    "triangle",
+    "cross"
+  ],
+  "sample_keys": {
+    "image": "png",
+    "label": "cls",
+    "metadata": "json"
+  },
+  "splits": {
+    "train": {
+      "shards": [
+        "shards/train-000000.tar",
+        "shards/train-000001.tar",
+        "shards/train-000002.tar",
+        "shards/train-000003.tar"
+      ],
+      "samples": 80
+    },
+    "val": {
+      "shards": [
+        "shards/val-000000.tar"
+      ],
+      "samples": 16
+    }
+  },
+  "statistics": {
+    "file_count": 5,
+    "total_bytes": 337920,
+    "sample_count": 96
+  },
+  "files": [
+    {
+      "path": "shards/train-000000.tar",
+      "size": 71680,
+      "sha256": "d47ba8cd4901e582272b9140c0026f3885a44e860bb212dd1ea0b5e2dc82ae7c",
+      "samples": 20,
+      "media_type": "application/x-tar"
+    },
+    {
+      "path": "shards/train-000001.tar",
+      "size": 71680,
+      "sha256": "5af590aca330828a6638aabad09b37d4b92ef8521fb7f0c23544d93fa3978e74",
+      "samples": 20,
+      "media_type": "application/x-tar"
+    },
+    {
+      "path": "shards/train-000002.tar",
+      "size": 71680,
+      "sha256": "e578293c6945ddb56e9652c328b78b8569e8ff74c17d03891a39f8d58f1fb1e5",
+      "samples": 20,
+      "media_type": "application/x-tar"
+    },
+    {
+      "path": "shards/train-000003.tar",
+      "size": 71680,
+      "sha256": "e746a92a38b311a02d64e8b3f2ffcbdad667920f0ad604a2e43a6af7307e8948",
+      "samples": 20,
+      "media_type": "application/x-tar"
+    },
+    {
+      "path": "shards/val-000000.tar",
+      "size": 51200,
+      "sha256": "af558dbe4cafa5a8a34077e83ea433b0443fcc24dc6d0d2cd1d0e8252e6d6f9e",
+      "samples": 16,
+      "media_type": "application/x-tar"
+    }
+  ],
+  "fingerprint": "ba33c6841768372e4450f87fb48079e9a30593d25c1a22e8cab6784e05fab36e"
+}

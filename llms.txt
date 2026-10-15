@@ -1,0 +1,50 @@
+# B2 Reference Architectures for Model Training
+
+> Designs, run contracts, and runnable examples for streaming training data, checkpointing, tracking experiments, pinning dataset versions, and orchestrating training pipelines with Backblaze B2.
+
+Canonical Backblaze product documentation: https://www.backblaze.com/docs/cloud-storage-ai-machine-learning. Repository pages are maintained as clean Markdown; product documentation remains authoritative for changing service behavior. This community-convention file is a navigation aid, not an access-control policy or a search-ranking claim.
+
+## Start here
+
+- [Model training summary](docs/model-training.md): Concise workload and capability overview.
+- [Architecture index](docs/architecture-index.md): Human-readable index generated from the catalog.
+- [Machine-readable catalog](catalog/architectures.yaml): Audiences, workflows, capabilities, integrations, evidence, security, compliance, and resource links.
+- [Training run contract](docs/training-run-contract.md): Shard, checkpoint, and model manifests and the lineage that links them.
+
+## Architectures
+
+- [Stream versioned training shards from B2 to GPU workers](architectures/stream-training-data/architecture.md): Package a released dataset as immutable WebDataset shards on B2, then stream them into data loaders on every worker with an optional local cache keyed by checksum.
+- [Checkpoint distributed training to B2 and resume after interruption](architectures/checkpoint-and-resume-training/architecture.md): Save sharded checkpoints to local disk, upload them to B2 with a manifest written last, resume from the newest complete checkpoint, and lock promoted checkpoints.
+- [Track experiments and register models with a B2 artifact store](architectures/track-experiments-and-register-models/architecture.md): Keep tracking metadata in a database, store run artifacts and registered model files on B2, and register promoted models automatically from B2 event notifications.
+- [Pin dataset versions for reproducible training runs](architectures/pin-dataset-versions/architecture.md): Version training data on B2 with a data-versioning tool or immutable release prefixes, and pin every run to an exact version and fingerprint.
+- [Orchestrate training pipelines and retrain when new data lands](architectures/orchestrate-training-pipelines/architecture.md): Run preprocessing, training, evaluation, and registration as pipeline steps that exchange artifacts through B2, and trigger retraining from B2 event notifications.
+
+## Contracts and schemas
+
+- [Architecture catalog schema](schemas/architecture-catalog.schema.json): JSON Schema for catalog/architectures.yaml.
+- [Shard manifest schema](schemas/shard-manifest.schema.json): Immutable training dataset version packaged as WebDataset shards.
+- [Checkpoint manifest schema](schemas/checkpoint-manifest.schema.json): Commit marker for a resumable training checkpoint.
+- [Model manifest schema](schemas/model-manifest.schema.json): Promoted model with dataset and checkpoint lineage.
+- [Synthetic dataset card](testdata/synthetic-shapes/README.md): Shared category dataset used by the main samples.
+- [Synthetic Croissant metadata](testdata/synthetic-shapes/croissant.json): MLCommons-compatible discovery and loading metadata.
+
+## Applications and configuration
+
+- [PyTorch checkpointed training on B2](applications/pytorch-b2-checkpointed-training/README.md): Stream shards, checkpoint, resume, promote, and prune.
+- [MLflow model registry on B2](applications/mlflow-b2-model-registry/README.md): Track runs with a B2 artifact store and register models from B2 events.
+- [MLflow tracking server deployment](infrastructure/mlflow/README.md): Compose template for a tracking server with a B2 artifact root.
+- [Kubernetes training job](infrastructure/kubernetes/README.md): Job template with scoped B2 credentials and local checkpoint staging.
+- [B2 configuration examples](examples/README.md): Lifecycle, encryption, Object Lock, notifications, replication, and keys.
+- [Related B2 sample applications](docs/related-b2-samples.md): Existing training, fine-tuning, dataset-versioning, and caching samples from the Backblaze sample organization.
+
+## Official product documentation
+
+- [Backblaze AI and machine learning](https://www.backblaze.com/docs/cloud-storage-ai-machine-learning): Canonical B2 documentation hub.
+- [Backblaze B2 documentation](https://www.backblaze.com/docs/cloud-storage): Current product behavior and setup.
+- [Backblaze B2 Overdrive](https://www.backblaze.com/cloud-storage/b2-overdrive): High-throughput option for sustained training reads.
+- [Backblaze B2 pricing](https://www.backblaze.com/cloud-storage/pricing): Current pricing and egress terms.
+
+## Optional
+
+- [Repository agent guide](AGENTS.md): Source hierarchy, generation commands, and operational invariants.
+- [Portable agent skill](skill/SKILL.md): Self-contained guidance for B2 model training architecture work.

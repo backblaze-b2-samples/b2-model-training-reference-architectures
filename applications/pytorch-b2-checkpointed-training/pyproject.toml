@@ -1,0 +1,25 @@
+[project]
+name = "pytorch-b2-checkpointed-training"
+version = "0.1.0"
+description = "PyTorch training that streams WebDataset shards from Backblaze B2 and checkpoints/resumes through B2"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Backblaze, Inc."}]
+keywords = ["backblaze-b2", "checkpointing", "pytorch", "s3-compatible", "webdataset"]
+requires-python = ">=3.10"
+dependencies = ["boto3>=1.36", "Pillow>=10", "python-dotenv>=1.0", "torch>=2.4"]
+
+[project.urls]
+Documentation = "https://www.backblaze.com/docs/cloud-storage-ai-machine-learning"
+"B2 Documentation" = "https://www.backblaze.com/docs/cloud-storage"
+
+[project.scripts]
+b2-train = "b2_train.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["live: needs real B2 credentials and RUN_B2_LIVE_TESTS=1"]

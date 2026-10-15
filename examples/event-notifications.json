@@ -1,0 +1,17 @@
+{
+  "bucketId": "<models-bucket-id>",
+  "eventNotificationRules": [
+    {
+      "name": "register-promoted-models",
+      "eventTypes": ["b2:ObjectCreated:Upload", "b2:ObjectCreated:MultipartUpload"],
+      "objectNamePrefix": "models/",
+      "isEnabled": true,
+      "maxEventsPerBatch": 1,
+      "targetConfiguration": {
+        "targetType": "webhook",
+        "url": "https://hooks.example.com/b2/models",
+        "hmacSha256SigningSecret": "<32-char-alphanumeric-secret>"
+      }
+    }
+  ]
+}

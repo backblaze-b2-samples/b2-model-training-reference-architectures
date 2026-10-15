@@ -1,0 +1,15 @@
+{
+  "asReplicationSource": {
+    "sourceApplicationKeyId": "<source-key-id>",
+    "replicationRules": [
+      {
+        "replicationRuleName": "models-to-dr",
+        "destinationBucketId": "<dr-bucket-id>",
+        "fileNamePrefix": "models/",
+        "includeExistingFiles": false,
+        "isEnabled": true,
+        "priority": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:backblaze:b2-model-training-reference-architectures:shard-manifest:1",
+  "title": "Training dataset shard manifest",
+  "description": "Immutable, training-ready dataset version stored under datasets/<dataset>/<version>/ and written last as the commit marker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "dataset",
+    "version",
+    "format",
+    "license",
+    "provenance",
+    "classes",
+    "sample_keys",
+    "splits",
+    "statistics",
+    "files",
+    "fingerprint"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+@[a-z0-9._-]+$"
+    },
+    "dataset": {
+      "$ref": "#/$defs/name"
+    },
+    "version": {
+      "$ref": "#/$defs/name"
+    },
+    "format": {
+      "enum": [
+        "webdataset"
+      ]
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SPDX identifier or LicenseRef-*"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class"
+      ],
+      "properties": {
+        "class": {
+          "enum": [
+            "synthetic",
+            "licensed",
+            "customer",
+            "public",
+            "mixed"
+          ]
+        },
+        "generator": {
+          "type": "string"
+        },
+        "source_release": {
+          "type": "string",
+          "description": "Upstream release id, for example an AI data provider release <dataset>@<version>"
+        }
+      }
+    },
+    "classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "sample_keys": {
+      "type": "object",
+      "required": [
+        "image",
+        "label"
+      ],
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z0-9.]+$"
+      }
+    },
+    "splits": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shards",
+          "samples"
+        ],
+        "properties": {
+          "shards": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_count",
+        "total_bytes",
+        "sample_count"
+      ],
+      "properties": {
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size",
+          "sha256",
+          "samples",
+          "media_type"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/path"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "media_type": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "fingerprint": {
+      "description": "SHA-256 over the sorted lines '<path>:<sha256>' of every entry in files, joined with newlines",
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*//)[A-Za-z0-9._/-]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

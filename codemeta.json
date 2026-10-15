@@ -1,0 +1,27 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "B2 Reference Architectures for Model Training",
+  "description": "Reference architectures, run contracts, and runnable examples for streaming training data, checkpointing and resuming training, tracking experiments, pinning dataset versions, and orchestrating retraining with Backblaze B2.",
+  "version": "0.1.0",
+  "dateModified": "2026-10-14",
+  "url": "https://www.backblaze.com/docs/cloud-storage-ai-machine-learning",
+  "license": "https://spdx.org/licenses/MIT",
+  "programmingLanguage": ["Python"],
+  "keywords": [
+    "model-training",
+    "distributed-checkpointing",
+    "webdataset",
+    "experiment-tracking",
+    "mlflow",
+    "pytorch",
+    "backblaze-b2",
+    "s3-compatible",
+    "reference-architecture"
+  ],
+  "author": {
+    "@type": "Organization",
+    "name": "Backblaze, Inc.",
+    "url": "https://www.backblaze.com/"
+  }
+}

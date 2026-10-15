@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: shapes-run-001
+  labels:
+    app.kubernetes.io/name: pytorch-b2-checkpointed-training
+spec:
+  # Each retry is a new pod that resumes from the newest checkpoint manifest in B2.
+  backoffLimit: 6
+  podFailurePolicy:
+    rules:
+      - action: FailJob  # exit 2 = refused input (fingerprint or dataset mismatch); retrying cannot help
+        onExitCodes:
+          containerName: train
+          operator: In
+          values: [2]
+      - action: Ignore  # preemption and node drain do not count against backoffLimit
+        onPodConditions:
+          - type: DisruptionTarget
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pytorch-b2-checkpointed-training
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: train
+          image: <registry>/pytorch-b2-checkpointed-training:<tag>
+          args:
+            - train
+            - --dataset=synthetic-shapes
+            - --version=v1
+            - --run-id=shapes-run-001  # stable across retries: this is what makes resume find the checkpoints
+            - --epochs=2
+            - --checkpoint-every=3
+            - --expect-fingerprint=<dataset-fingerprint>
+            - --staging-dir=/scratch/staging
+            - --cache-dir=/scratch/cache
+          envFrom:
+            - secretRef:
+                name: b2-training-credentials
+          env:
+            - name: TMPDIR
+              value: /scratch
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+      volumes:
+        # Node-local scratch for checkpoint staging and the shard cache; B2 is the durable copy.
+        # On nodes with local NVMe, use a local PersistentVolume or a generic ephemeral volume instead.
+        - name: scratch
+          emptyDir:
+            sizeLimit: 20Gi
