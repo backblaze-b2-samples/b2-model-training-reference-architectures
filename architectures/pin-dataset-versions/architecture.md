@@ -59,7 +59,7 @@ The training job resolves the pin at startup and stops if the fingerprint differ
 
 | Role | Scope | Capabilities |
 |---|---|---|
-| versioning-service (lakeFS server or DVC pusher) | dataset bucket | `listFiles`, `readFiles`, `writeFiles`, `deleteFiles` for garbage collection |
+| versioning-service (lakeFS server or DVC pusher) | dataset bucket | `listFiles`, `readFiles`, `writeFiles` (covers garbage collection by name, which hides files); add `deleteFiles` only if the tool deletes specific versions |
 | release-publisher | `datasets/` | `listFiles`, `readFiles`, `writeFiles`, `writeFileRetentions` |
 | training-reader | `datasets/<dataset>/` | `listFiles`, `readFiles` |
 

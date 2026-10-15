@@ -24,7 +24,7 @@ def test_live_train_resume_promote_prune(tmp_path, monkeypatch):
     train = ["train", "--run-id", run_id, "--checkpoint-every", "3", "--cache-dir", str(tmp_path / "cache")]
     assert cli.main(train + ["--max-steps", "4"]) == 0
     assert cli.main(train) == 0
-    # B2_LIVE_LOCK_DAYS=1 tests governance retention; needs an Object-Lock bucket and writeFileRetentions,
+    # B2_LIVE_LOCK_DAYS=1 tests governance retention; needs an Object-Lock bucket plus writeFileRetentions and readFileRetentions,
     # and the promoted objects then cannot be deleted until the retention date passes.
     lock = os.environ.get("B2_LIVE_LOCK_DAYS")
     retention = ["--lock-days", lock] if lock else ["--no-lock"]

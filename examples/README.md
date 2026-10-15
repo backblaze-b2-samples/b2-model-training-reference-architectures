@@ -41,8 +41,8 @@ b2 bucket update --replication "$(cat replication.json)" "$ORG-train-models"
 b2 key create --bucket "$ORG-train-datasets"    --name-prefix datasets/           dataset-publisher listFiles,readFiles,writeFiles
 b2 key create --bucket "$ORG-train-datasets"    --name-prefix "datasets/$DATASET/" training-reader   listFiles,readFiles
 b2 key create --bucket "$ORG-train-checkpoints" --name-prefix "checkpoints/$RUN/"  checkpoint-writer listFiles,readFiles,writeFiles
-b2 key create --bucket "$ORG-train-checkpoints" --name-prefix checkpoints/        checkpoint-pruner listFiles,readFiles,deleteFiles
-b2 key create --bucket "$ORG-train-models"      --name-prefix models/             model-promoter    listFiles,readFiles,writeFiles,writeFileRetentions
+b2 key create --bucket "$ORG-train-checkpoints" --name-prefix checkpoints/        checkpoint-pruner listFiles,writeFiles
+b2 key create --bucket "$ORG-train-models"      --name-prefix models/             model-promoter    listFiles,readFiles,writeFiles,writeFileRetentions,readFileRetentions
 b2 key create --bucket "$ORG-train-models"      --name-prefix models/             event-receiver    listFiles,readFiles
 b2 key create --bucket "$ORG-mlflow-artifacts"  --name-prefix mlflow/             mlflow-client     listFiles,readFiles,writeFiles
 ```
@@ -52,6 +52,9 @@ A training job that both reads datasets and writes checkpoints in separate bucke
 ## Caveats
 
 - Lifecycle rules use B2 semantics: `daysFromUploadingToHiding` hides a file, and `daysFromHidingToDeleting` purges hidden versions. A rule that hides by age also hides the newest checkpoint of a long run, so scope it to scratch prefixes only.
+- Deletes by name (what S3 `DeleteObject`/`DeleteObjects` do without a version ID) need `writeFiles` and hide the file; deleting a specific version needs `deleteFiles`. Keys that only hide leave permanent deletion to lifecycle rules ([B2 docs](https://www.backblaze.com/docs/cloud-storage-s3-compatible-app-keys)).
+- Writing retention (`writeFileRetentions`) and reading it (`readFileRetentions`) are separate capabilities. Without the read capability B2 omits retention fields, so a key that must verify a lock needs both.
+- For keys restricted to one bucket, B2 recommends also granting `listAllBucketNames` for compatibility with some SDKs and integrations.
 - Object Lock in governance mode can be bypassed only by a key with `bypassGovernance`. Compliance mode cannot be shortened by anyone.
 - Replication copies within your account for disaster recovery. Replicated data cannot be replicated again, and deletes and hide markers are not replicated ([B2 docs](https://www.backblaze.com/docs/cloud-storage-cloud-replication)).
 - Event notifications are delivered at least once and must be acknowledged quickly. Receivers verify `X-Bz-Event-Notification-Signature` and deduplicate ([B2 docs](https://www.backblaze.com/docs/cloud-storage-event-notifications-reference-guide)).

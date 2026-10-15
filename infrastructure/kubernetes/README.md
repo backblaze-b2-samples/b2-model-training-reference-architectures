@@ -37,7 +37,7 @@ Size it for one staged checkpoint plus the shards you want cached. On GPU nodes 
 ## Credentials and key scoping
 
 The Secret is injected with `envFrom`, so the container reads the same `B2_*` variables as the CLI and nothing is baked into the image.
-Use an application key restricted to the training bucket with `listFiles,readFiles,writeFiles`; give `promote` and `prune` their own keys (`writeFileRetentions`, `deleteFiles`) instead of widening the training key.
+Use an application key restricted to the training bucket with `listFiles,readFiles,writeFiles`; give `promote` and `prune` their own keys (`promote` adds `writeFileRetentions` and `readFileRetentions`; `prune` needs only `listFiles,writeFiles` on `checkpoints/`, because a delete by name on B2 hides the file) instead of widening the training key.
 When datasets, checkpoints and models live in separate buckets, scope each key to the buckets that job touches and make the dataset access read-only.
 
 ## Single-node vs multi-node

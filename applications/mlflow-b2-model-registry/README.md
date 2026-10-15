@@ -28,7 +28,7 @@ Create a private bucket and application keys scoped to it (bucket names are glob
 | Event receiver | `handle-event`, `serve-events` | `readFiles` | `models/` |
 | Registry admin | `promote`, `artifact-uri` | none used; any key satisfies config | |
 
-`promote` only touches the tracking database. Deleting artifacts (for example `mlflow gc`) needs `deleteFiles`; keep that on an operator key.
+`promote` only touches the tracking database. Deleting artifacts (for example `mlflow gc`) deletes by name, which on B2 needs `writeFiles` and hides the files until a lifecycle rule purges them; `deleteFiles` is only needed to delete specific versions. Keep cleanup on an operator key.
 
 ```bash
 cp .env.example .env && chmod 600 .env     # key, bucket, B2_REGION; endpoint and artifact root are derived

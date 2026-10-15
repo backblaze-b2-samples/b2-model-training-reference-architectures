@@ -219,10 +219,29 @@ def ensure_retention(client, bucket, key: str, until: dt.datetime) -> None:
                                 Retention={"Mode": "GOVERNANCE", "RetainUntilDate": until})
 
 
+def _retention_api(client, bucket, key: str) -> tuple[str | None, dt.datetime | None] | str:
+    """HEAD showed no lock. B2 omits those fields for keys without readFileRetentions, so ask directly."""
+    try:
+        r = client.get_object_retention(Bucket=bucket, Key=key)["Retention"]
+    except ClientError as e:
+        if _code(e) in ("AccessDenied", "403"):
+            return "hidden"
+        if _code(e) in ("NoSuchObjectLockConfiguration", "ObjectLockConfigurationNotFoundError", "404"):
+            return None, None
+        raise  # anything else is a failed request, not evidence that the object is unlocked
+    return (r.get("Mode") or "").upper() or None, r.get("RetainUntilDate")
+
+
 def retention_errors(client, bucket, keys: list[str], until: dt.datetime) -> list[str]:
     errors = []
     for key in keys:
         mode, current = retention(head(client, bucket, key) or {})
+        if mode is None:
+            found = _retention_api(client, bucket, key)
+            if found == "hidden":
+                errors.append(f"{key}: cannot read Object Lock settings; the key needs readFileRetentions")
+                continue
+            mode, current = found
         if mode != "GOVERNANCE" or current is None or current < until:
             errors.append(f"{key}: retention is {mode or 'none'}, expected GOVERNANCE until {until:%Y-%m-%d}")
     return errors

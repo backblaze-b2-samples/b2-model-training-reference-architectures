@@ -61,8 +61,8 @@ Manifests follow the repository's [shard](../../schemas/shard-manifest.schema.js
 | --- | --- | --- |
 | `publish-dataset` | `listFiles,readFiles,writeFiles` | `datasets/` |
 | `train` | `listFiles,readFiles` on datasets; `listFiles,readFiles,writeFiles` on checkpoints | `datasets/`, `checkpoints/` |
-| `promote` | `listFiles,readFiles` on checkpoints; `writeFiles` on models; add `writeFileRetentions` for `--lock-days` (Object-Lock-enabled bucket; retention is a real commitment) | `checkpoints/`, `models/` |
-| `prune` | `listFiles,deleteFiles` | `checkpoints/` |
+| `promote` | `listFiles,readFiles` on checkpoints; `writeFiles` on models; add `writeFileRetentions` and `readFileRetentions` for `--lock-days` (Object-Lock-enabled bucket; retention is a real commitment; reading it back is how promotion verifies the lock) | `checkpoints/`, `models/` |
+| `prune` | `listFiles,writeFiles` (on B2 a delete by name needs `writeFiles` and hides the file; `deleteFiles` is only for deleting a specific version, which `prune` never does) | `checkpoints/` |
 
 Use separate keys per job rather than one key with every capability; a training job should not be able to delete checkpoints or set retention. A B2 key carries at most one name prefix, and this sample reads one key per process, so `train` and `promote` need a key scoped to the bucket without a name prefix (`publish-dataset` and `prune` can use `datasets/` and `checkpoints/` prefixes). With separate buckets in production, give each stage its own bucket-scoped key.
 

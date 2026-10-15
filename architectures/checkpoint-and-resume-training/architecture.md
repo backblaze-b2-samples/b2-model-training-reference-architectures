@@ -116,15 +116,16 @@ Writing directly to object storage removes the staging disk but makes training w
 | Role | Bucket / prefix | Capabilities |
 |---|---|---|
 | checkpoint-writer | checkpoints `checkpoints/<run>/` | `listFiles`, `readFiles`, `writeFiles` |
-| checkpoint-pruner | checkpoints `checkpoints/` | `listFiles`, `readFiles`, `deleteFiles` |
-| model-promoter | models `models/` | `listFiles`, `readFiles`, `writeFiles`, `writeFileRetentions` |
+| checkpoint-pruner | checkpoints `checkpoints/` | `listFiles`, `writeFiles` |
+| model-promoter | models `models/` | `listFiles`, `readFiles`, `writeFiles`, `writeFileRetentions`, `readFileRetentions` |
 | model-reader | models `models/<model>/` | `listFiles`, `readFiles` |
 | provisioning (admin) | account | Lock, lifecycle, replication, notifications; not used at runtime |
 
 A server-side copy between buckets needs read access to the source and write access to the destination. A single key covers one bucket, so cross-bucket promotion uses a key without a bucket restriction, limited to the minimum capabilities. Otherwise, run promotion as a download-and-upload with two scoped keys. The sample uses one bucket, so its promoter key stays scoped.
 
 - Checkpoints contain everything needed to reconstruct the model and often memorize training data. Protect them like the data.
-- The pruner key cannot write, and the writer key cannot delete.
+- On B2, deleting by name needs `writeFiles` and only hides the file; permanently deleting a version needs `deleteFiles`. Writer and pruner keys can therefore hide files under `checkpoints/`, but neither holds `deleteFiles`, so purging is left to the lifecycle rule an administrator configured. Neither key can reach `models/`.
+- The promoter needs `readFileRetentions` as well as `writeFileRetentions`: without it B2 hides retention settings, and the promotion check cannot confirm the lock.
 - Every checkpoint and model manifest carries the dataset pin. Every model manifest also carries its source checkpoint fingerprint.
 
 ## Where B2 does not fit

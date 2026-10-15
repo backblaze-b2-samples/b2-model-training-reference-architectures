@@ -169,8 +169,8 @@ architectures:
         - applications/pytorch-b2-checkpointed-training/tests
         - architectures/checkpoint-and-resume-training/architecture.md
     security_considerations:
-      - Use a checkpoint writer key without deleteFiles and a separate pruning key that cannot touch models/
-      - Promote with a key that has writeFileRetentions but not bypassGovernance
+      - Scope checkpoint writer and pruner keys to checkpoints/; on B2 their writeFiles can hide files by name, and neither needs deleteFiles, so purging stays with lifecycle rules
+      - Promote with a key that has writeFileRetentions and readFileRetentions but not bypassGovernance
       - Never resume from a checkpoint whose manifest is missing or whose file checksums do not match
       - Treat checkpoints as sensitive when training data contains personal or licensed content
     compliance_considerations:

@@ -102,7 +102,7 @@ Filter on the manifest key, not on every object: a model with many files would o
 | Role | Bucket / prefix | Capabilities |
 |---|---|---|
 | tracking-client (mode A) | artifacts `mlflow/` | `listFiles`, `readFiles`, `writeFiles` |
-| tracking-server (mode B) | artifacts `mlflow/` | `listFiles`, `readFiles`, `writeFiles`, `deleteFiles` for garbage collection |
+| tracking-server (mode B) | artifacts `mlflow/` | `listFiles`, `readFiles`, `writeFiles` (also covers artifact deletion by name, which hides files) |
 | event-receiver | models `models/` | `listFiles`, `readFiles` |
 | provisioning (admin) | account | Bucket settings and `writeBucketNotifications` |
 

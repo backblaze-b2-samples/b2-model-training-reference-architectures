@@ -27,12 +27,12 @@ Create one key per role, scoped to the bucket and, where possible, a name prefix
 
 | Role | Mode | Capabilities | Name prefix |
 | --- | --- | --- | --- |
-| Tracking server | (b) proxied | `listFiles,readFiles,writeFiles` (+ `deleteFiles` if users delete artifacts) | `mlflow/` |
+| Tracking server | (b) proxied | `listFiles,readFiles,writeFiles` (`writeFiles` also covers artifact deletion by name, which hides files) | `mlflow/` |
 | Tracking server | (a) direct | `listFiles,readFiles` (UI artifact viewer) | `mlflow/` |
 | Training client | (a) direct | `listFiles,readFiles,writeFiles` | `mlflow/` |
 | Serving / inference | any | `listFiles,readFiles` | `mlflow/` or `models/` |
 | Event receiver | any | `readFiles` | `models/` |
-| Operator (`mlflow gc`, cleanup) | any | add `deleteFiles` | `mlflow/` |
+| Operator (`mlflow gc`, cleanup) | any | `listFiles,writeFiles` to hide deleted artifacts; add `deleteFiles` only to remove specific versions | `mlflow/` |
 
 The server receives its key as `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` inside the container; B2 keys are not shared with PostgreSQL.
 

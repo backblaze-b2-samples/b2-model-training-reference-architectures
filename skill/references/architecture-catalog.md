@@ -35,7 +35,7 @@ Save sharded checkpoints to local disk, upload them to B2 with a manifest writte
 
 **Scale:** Checkpoints from megabytes to multiple terabytes written every few minutes to hours. Upload throughput, not storage capacity, bounds checkpoint frequency. Stage locally, upload asynchronously, and parallelize per shard. Standard B2 is the default; evaluate B2 Overdrive when checkpoint upload time limits training cadence.
 
-**Security:** Use a checkpoint writer key without deleteFiles and a separate pruning key that cannot touch models/; Promote with a key that has writeFileRetentions but not bypassGovernance; Never resume from a checkpoint whose manifest is missing or whose file checksums do not match; Treat checkpoints as sensitive when training data contains personal or licensed content.
+**Security:** Scope checkpoint writer and pruner keys to checkpoints/; on B2 their writeFiles can hide files by name, and neither needs deleteFiles, so purging stays with lifecycle rules; Promote with a key that has writeFileRetentions and readFileRetentions but not bypassGovernance; Never resume from a checkpoint whose manifest is missing or whose file checksums do not match; Treat checkpoints as sensitive when training data contains personal or licensed content.
 
 **Evidence basis:** PyTorch and Ray checkpoint source review; B2 Object Lock, lifecycle, and key capability documentation review; Moto-backed S3 application tests for manifest-last commits, resume, promotion, and pruning.
 

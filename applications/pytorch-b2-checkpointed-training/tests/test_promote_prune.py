@@ -1,6 +1,7 @@
 import dataclasses
 
 import pytest
+from botocore.exceptions import ClientError
 from conftest import BUCKET, get_json
 
 from b2_train import checkpoint, cli, layout, storage
@@ -142,3 +143,32 @@ def test_promote_requires_explicit_retention_choice(run, extra, capsys):
     with pytest.raises(SystemExit) as exc:
         run(PROMOTE + extra)
     assert exc.value.code == 2
+
+
+def _hide_lock_headers(s3, monkeypatch, retention_api_denied: bool):
+    """What B2 returns to a key without readFileRetentions: HEAD carries no Object Lock fields."""
+    real_head = s3.head_object
+
+    def head(**kw):
+        h = real_head(**kw)
+        return {k: v for k, v in h.items() if not k.startswith("ObjectLock")}
+
+    def get_retention(**kw):  # stands in for moto's GetObjectRetention, which returns 500 in moto 5.2
+        if retention_api_denied:
+            raise ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "GetObjectRetention")
+        h = real_head(**kw)
+        return {"Retention": {"Mode": h["ObjectLockMode"], "RetainUntilDate": h["ObjectLockRetainUntilDate"]}}
+    monkeypatch.setattr(s3, "head_object", head)
+    monkeypatch.setattr(s3, "get_object_retention", get_retention)
+
+
+def test_missing_read_retention_capability_is_reported_as_such(s3, locked_run, monkeypatch, capsys):
+    _hide_lock_headers(s3, monkeypatch, retention_api_denied=True)
+    assert locked_run(PROMOTE + ["--lock-days", "1"]) == 1
+    err = capsys.readouterr().err
+    assert "needs readFileRetentions" in err and "retention is none" not in err
+
+
+def test_retention_api_is_used_when_head_omits_lock_fields(s3, locked_run, monkeypatch):
+    _hide_lock_headers(s3, monkeypatch, retention_api_denied=False)
+    assert locked_run(PROMOTE + ["--lock-days", "1"]) == 0

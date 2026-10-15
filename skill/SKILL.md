@@ -13,6 +13,7 @@ For changing service behavior, limits, and setup steps, use the canonical [Backb
 - Use the S3-compatible API. Derive `https://s3.<region>.backblazeb2.com` from `B2_REGION`; never hardcode a region or endpoint.
 - Env: `B2_APPLICATION_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, `B2_REGION`, optional `B2_ENDPOINT`. Secrets go in gitignored 0600 `.env` files or a secret store; never print keys.
 - A key scopes to one bucket + one prefix + capabilities. Design roles around that: dataset-publisher, training-reader, checkpoint-writer, checkpoint-pruner, model-promoter, event-receiver, tracking client or server. Use the master key only for provisioning.
+- B2 capability details: a delete by name (S3 delete without a version ID) needs `writeFiles` and hides the file; deleting a specific version needs `deleteFiles`. Reading retention needs `readFileRetentions`, separate from `writeFileRetentions`; without it B2 omits Object Lock fields, so any key that verifies a lock needs both.
 - Separate buckets for datasets, checkpoints, and models, because lifecycle, Object Lock, replication, and notifications are bucket-level.
 - Write `manifest.json` last under every dataset, checkpoint, and model prefix. A prefix without a manifest is incomplete: never train on it, resume from it, or register it.
 - Pin each run to `<dataset>@<version>` plus the fingerprint; stop on mismatch; copy the pin into every checkpoint, model, and tracking record.
