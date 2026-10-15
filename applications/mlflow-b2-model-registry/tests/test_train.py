@@ -1,3 +1,5 @@
+import hashlib
+import json
 import shutil
 
 import mlflow
@@ -23,6 +25,21 @@ def test_tampered_shard_rejected(tmp_path):
     with open(data / "shards" / "val-000000.tar", "ab") as f:
         f.write(b"x")
     with pytest.raises(train.DatasetError, match="checksum"):
+        train.load_manifest(data)
+
+
+def test_changed_shards_under_original_fingerprint_rejected(tmp_path):
+    """Shard hashes updated to match new content, top-level pin left alone: not a valid dataset."""
+    data = tmp_path / "data"
+    shutil.copytree(DATA, data)
+    shard = data / "shards" / "val-000000.tar"
+    with open(shard, "ab") as f:
+        f.write(b"\0" * 512)
+    m = json.loads((data / "manifest.json").read_text())
+    entry = next(f for f in m["files"] if f["path"] == "shards/val-000000.tar")
+    entry["size"], entry["sha256"] = shard.stat().st_size, hashlib.sha256(shard.read_bytes()).hexdigest()
+    (data / "manifest.json").write_text(json.dumps(m))
+    with pytest.raises(train.DatasetError, match="fingerprint does not match"):
         train.load_manifest(data)
 
 

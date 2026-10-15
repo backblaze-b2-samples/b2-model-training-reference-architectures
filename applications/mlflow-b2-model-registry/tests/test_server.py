@@ -1,5 +1,6 @@
 import http.client
 import json
+import os
 import threading
 import time
 import urllib.error
@@ -138,3 +139,47 @@ def test_pending_deliveries_replay_after_restart(serve, tmp_path):
     srv = serve(lambda p: seen.append(p) or server.OK)
     _until(lambda: not srv.spool.waiting())
     assert seen == [json.loads(body)]
+
+
+def test_temporary_head_error_is_retried_through_the_receiver(serve, s3, cfg, monkeypatch):
+    from test_events import _flaky_head
+
+    client = registry.configure(cfg)
+    srv = serve(lambda p: registry.handle_payload(cfg, client, s3, p))
+    body = event_body(publish(s3, model_manifest()))
+    calls = _flaky_head(s3, monkeypatch)
+    assert _post(srv, body, sign(body)) == 200
+    _until(lambda: not srv.spool.waiting())
+    assert len(calls) >= 2 and list(srv.spool.failed.iterdir()) == []
+    assert [str(mv.version) for mv in client.search_model_versions("name = 'shapes-classifier'")] == ["1"]
+
+
+def _health(srv) -> int:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{srv.server_port}/healthz", timeout=5) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_worker_survives_spool_filesystem_errors(serve):
+    first, second = event_body("models/m/v1/manifest.json"), event_body("models/m/v2/manifest.json")
+    seen = []
+
+    def handle(payload):
+        seen.append(payload)
+        return server.REJECTED if payload == json.loads(first) else server.OK
+
+    srv = serve(handle)
+    srv.spool.failed.chmod(0o500)  # moving the rejected event into failed/ will raise PermissionError
+    try:
+        assert _post(srv, first, sign(first)) == 200
+        _until(lambda: seen and _health(srv) == 503)
+        assert _post(srv, second, sign(second)) == 200
+        _until(lambda: json.loads(second) in seen)  # the worker is still alive
+        assert len(srv.spool.waiting()) == 1  # the rejected event is kept, not lost
+    finally:
+        srv.spool.failed.chmod(0o700)
+    _until(lambda: not srv.spool.waiting() and len(list(srv.spool.failed.iterdir())) == 1)
+    _until(lambda: _health(srv) == 200)

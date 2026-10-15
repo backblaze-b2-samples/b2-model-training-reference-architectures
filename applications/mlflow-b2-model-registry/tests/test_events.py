@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+from botocore.exceptions import ClientError
 from conftest import BUCKET, WEIGHTS, event_body, model_manifest, publish, sign
 
 from mlflow_b2 import events, registry, storage
@@ -115,3 +116,38 @@ def test_get_bytes_caps_size(s3):
         assert "larger" in str(e)
     else:
         raise AssertionError("expected StorageError")
+
+
+def _flaky_head(s3, monkeypatch, failures=1, code="503"):
+    """HEAD fails with a temporary B2 error `failures` times, then behaves normally."""
+    real, calls = s3.head_object, []
+
+    def head(**kw):
+        calls.append(kw["Key"])
+        if len(calls) <= failures:
+            raise ClientError({"Error": {"Code": code, "Message": "SlowDown"}}, "HeadObject")
+        return real(**kw)
+    monkeypatch.setattr(s3, "head_object", head)
+    return calls
+
+
+def test_temporary_head_error_is_retryable_not_rejected(s3, cfg, monkeypatch, capsys):
+    key = publish(s3, model_manifest())
+    _flaky_head(s3, monkeypatch)
+    rc, client = _handle(cfg, s3, key)
+    assert rc == 1 and "503" in capsys.readouterr().err
+    assert client.search_registered_models() == []
+    rc, _ = _handle(cfg, s3, key)
+    assert rc == 0 and len(client.search_model_versions("name = 'shapes-classifier'")) == 1
+
+
+def test_retryable_failure_wins_over_rejection_in_one_batch(s3, cfg, monkeypatch):
+    bad = model_manifest(version="v5")
+    del bad["source"]
+    rejected = publish(s3, bad)
+    ok = publish(s3, model_manifest(version="v6"))
+    _flaky_head(s3, monkeypatch)
+    rc, client = _handle(cfg, s3, rejected, ok)
+    assert rc == 1  # v6 must be retried, not discarded with v5
+    rc, _ = _handle(cfg, s3, rejected, ok)
+    assert rc == 2 and len(client.search_model_versions("name = 'shapes-classifier'")) == 1

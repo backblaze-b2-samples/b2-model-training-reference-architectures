@@ -34,10 +34,36 @@ def describe(root: Path) -> list[dict]:
             for p in sorted(root.rglob("*")) if p.is_file()]
 
 
+def safe_path(path: str) -> bool:
+    """Relative POSIX path with no empty, '.' or '..' segments: it cannot escape its prefix or folder."""
+    return (isinstance(path, str) and bool(path) and not path.startswith("/") and "\\" not in path
+            and all(seg not in ("", ".", "..") for seg in path.split("/")))
+
+
+def file_errors(m: dict) -> list[str]:
+    """Paths are safe and the fingerprint is recomputed from the listed files, never trusted."""
+    errors = [f"unsafe path {f.get('path')!r}" for f in m.get("files", []) if not safe_path(f.get("path"))]
+    if not errors and fingerprint(m["files"]) != m["fingerprint"]:
+        errors.append("fingerprint does not match the listed files")
+    return errors
+
+
+def dataset_errors(m: dict) -> list[str]:
+    """Structure of a shard manifest, whether read from disk or from B2."""
+    errors = [f"manifest missing {k}" for k in ("id", "dataset", "version", "files", "splits", "fingerprint",
+                                                  "sample_keys") if k not in m]
+    if errors:
+        return errors
+    errors = file_errors(m)
+    listed = {f["path"] for f in m["files"]}
+    errors += [f"split {s}: {p} not in files" for s, v in m["splits"].items() for p in v["shards"]
+               if p not in listed]
+    return errors
+
+
 def check_dataset(src: Path, m: dict) -> list[str]:
     """Local shard files must match the manifest byte for byte before anything is uploaded."""
-    errors = [f"manifest missing {k}" for k in ("id", "dataset", "version", "files", "splits", "fingerprint")
-              if k not in m]
+    errors = dataset_errors(m)
     if errors:
         return errors
     for f in m["files"]:
@@ -46,11 +72,6 @@ def check_dataset(src: Path, m: dict) -> list[str]:
             errors.append(f"{f['path']}: missing")
         elif p.stat().st_size != f["size"] or sha256_file(p) != f["sha256"]:
             errors.append(f"{f['path']}: size or sha256 differs from manifest")
-    if fingerprint(m["files"]) != m["fingerprint"]:
-        errors.append("fingerprint does not match the listed files")
-    listed = {f["path"] for f in m["files"]}
-    errors += [f"split {s}: {p} not in files" for s, v in m["splits"].items() for p in v["shards"]
-               if p not in listed]
     return errors
 
 

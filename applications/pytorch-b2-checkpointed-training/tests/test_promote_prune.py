@@ -3,7 +3,7 @@ import dataclasses
 import pytest
 from conftest import BUCKET, get_json
 
-from b2_train import checkpoint, cli, layout
+from b2_train import checkpoint, cli, layout, storage
 
 TRAIN = ["train", "--run-id", "r1", "--checkpoint-every", "3"]
 PROMOTE = ["promote", "--run-id", "r1", "--model", "shapes-cnn", "--model-version", "v1"]
@@ -50,21 +50,74 @@ def test_promote_without_checkpoint_or_bad_name(s3, run):
     assert run(["promote", "--run-id", "r1", "--model", "Shapes", "--model-version", "v1", "--no-lock"]) == 2
 
 
-def test_promote_with_lock_days_sets_governance(s3, cfg, shapes, monkeypatch, validate, tmp_path):
+LOCKED = "locked-bucket"
+
+
+@pytest.fixture
+def locked_run(s3, cfg, shapes, monkeypatch, tmp_path):
+    """CLI against an Object-Lock bucket with a 3-step checkpoint committed."""
     monkeypatch.chdir(tmp_path)
-    s3.create_bucket(Bucket="locked-bucket", ObjectLockEnabledForBucket=True)
+    s3.create_bucket(Bucket=LOCKED, ObjectLockEnabledForBucket=True)
     # moto wants an integrity header even on body-less CopyObject with lock headers; S3 does not.
     s3.meta.events.register("before-sign.s3.CopyObject", lambda request, **kw:
                             request.headers.__setitem__("x-amz-sdk-checksum-algorithm", "SHA256"))
-    locked = dataclasses.replace(cfg, bucket="locked-bucket")
-    monkeypatch.setattr(cli, "load", lambda: locked)
+    monkeypatch.setattr(cli, "load", lambda: dataclasses.replace(cfg, bucket=LOCKED))
     assert cli.main(["publish-dataset", "--src", str(shapes)]) == 0
     assert cli.main(TRAIN + ["--max-steps", "3"]) == 0
-    assert cli.main(PROMOTE + ["--lock-days", "1"]) == 0
-    m = validate("model-manifest", get_json(s3, MODEL + layout.MANIFEST_NAME, "locked-bucket"))
+    return cli.main
+
+
+def _model_keys(m):
+    return [MODEL + layout.MANIFEST_NAME] + [MODEL + f["path"] for f in m["files"]]
+
+
+def test_promote_with_lock_days_sets_governance(s3, locked_run, validate):
+    assert locked_run(PROMOTE + ["--lock-days", "1"]) == 0
+    m = validate("model-manifest", get_json(s3, MODEL + layout.MANIFEST_NAME, LOCKED))
     assert m["retention_mode"] == "governance"
-    for key in [MODEL + layout.MANIFEST_NAME] + [MODEL + f["path"] for f in m["files"]]:
-        assert s3.head_object(Bucket="locked-bucket", Key=key)["ObjectLockMode"] == "GOVERNANCE"
+    for key in _model_keys(m):
+        assert s3.head_object(Bucket=LOCKED, Key=key)["ObjectLockMode"] == "GOVERNANCE"
+
+
+def test_locked_retry_locks_files_left_by_an_unlocked_attempt(s3, locked_run):
+    """An interrupted unlocked promotion must not leave unlocked payload under a governance manifest."""
+    ck = get_json(s3, layout.checkpoint_prefix("r1", 3) + layout.MANIFEST_NAME, LOCKED)
+    for f in ck["files"]:  # copied without retention, manifest never written
+        s3.copy_object(Bucket=LOCKED, Key=MODEL + f["path"], MetadataDirective="REPLACE",
+                       Metadata={"sha256": f["sha256"]},
+                       CopySource={"Bucket": LOCKED, "Key": layout.checkpoint_prefix("r1", 3) + f["path"]})
+        assert "ObjectLockMode" not in s3.head_object(Bucket=LOCKED, Key=MODEL + f["path"])
+    assert locked_run(PROMOTE + ["--lock-days", "365"]) == 0
+    m = get_json(s3, MODEL + layout.MANIFEST_NAME, LOCKED)
+    for key in _model_keys(m):
+        assert s3.head_object(Bucket=LOCKED, Key=key)["ObjectLockMode"] == "GOVERNANCE", key
+
+
+def test_unlocked_retry_refuses_files_already_under_retention(s3, locked_run, capsys):
+    ck = get_json(s3, layout.checkpoint_prefix("r1", 3) + layout.MANIFEST_NAME, LOCKED)
+    f = ck["files"][0]
+    body = s3.get_object(Bucket=LOCKED, Key=layout.checkpoint_prefix("r1", 3) + f["path"])["Body"].read()
+    s3.put_object(Bucket=LOCKED, Key=MODEL + f["path"], Body=body, Metadata={"sha256": f["sha256"]},
+                  ObjectLockMode="GOVERNANCE", ObjectLockRetainUntilDate=storage.lock_until(1),
+                  ChecksumAlgorithm="SHA256")
+    assert locked_run(UNLOCKED) == 1
+    assert "already under retention" in capsys.readouterr().err
+    assert "Contents" not in s3.list_objects_v2(Bucket=LOCKED, Prefix=MODEL + layout.MANIFEST_NAME)
+
+
+@pytest.mark.parametrize("forge_metadata", [False, True])
+def test_promote_refuses_corrupted_source_checkpoint(published, s3, run, capsys, forge_metadata):
+    """Same-size different bytes: never copied, and never labelled with the expected checksum."""
+    assert run(TRAIN + ["--max-steps", "3"]) == 0
+    ck = get_json(s3, layout.checkpoint_prefix("r1", 3) + layout.MANIFEST_NAME)
+    f = next(f for f in ck["files"] if f["path"] != ".metadata")
+    key = layout.checkpoint_prefix("r1", 3) + f["path"]
+    corrupted = bytes(b ^ 0xFF for b in s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+    s3.put_object(Bucket=BUCKET, Key=key, Body=corrupted,
+                  Metadata={"sha256": f["sha256"]} if forge_metadata else {})
+    assert run(UNLOCKED) == 1
+    assert "differs from manifest" in capsys.readouterr().err
+    assert s3.list_objects_v2(Bucket=BUCKET, Prefix=MODEL)["KeyCount"] == 0
 
 
 def test_prune_keeps_newest_complete_and_newer_incomplete(published, s3, run, capsys):

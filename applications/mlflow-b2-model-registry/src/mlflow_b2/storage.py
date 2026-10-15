@@ -55,7 +55,9 @@ def verify_files(client, bucket: str, prefix: str, files: list[dict]) -> list[st
         try:
             head = client.head_object(Bucket=bucket, Key=prefix + f["path"])
         except ClientError as e:
-            errors.append(f"{f['path']}: {_code(e)}")
+            if _code(e) not in ("404", "NoSuchKey", "NotFound"):  # 403, 429, 5xx: retry, do not reject
+                raise StorageError(f"{f['path']}: B2 request failed ({_code(e)})") from e
+            errors.append(f"{f['path']}: missing")
             continue
         if head["ContentLength"] != f["size"]:
             errors.append(f"{f['path']}: size differs from manifest")

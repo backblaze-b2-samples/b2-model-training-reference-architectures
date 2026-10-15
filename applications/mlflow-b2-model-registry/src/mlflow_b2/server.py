@@ -14,6 +14,7 @@ from pathlib import Path
 from . import events
 
 MAX_BODY = 1 << 20
+MAX_RETRY_DELAY = 300.0
 OK, RETRY, REJECTED = 0, 1, 2  # handler results, same as registry.handle_payload exit codes
 
 
@@ -91,6 +92,11 @@ def make_server(secret: str, handle: Callable[[dict], int], host: str = "127.0.0
             enqueue(path)
             self._reply(200)
 
+        def do_GET(self):
+            if self.path != "/healthz":
+                return self._reply(404)
+            self._reply(200 if server.healthy else 503)
+
         def _reply(self, code: int):
             self.send_response(code)
             self.send_header("Content-Length", "0")
@@ -113,16 +119,20 @@ def make_server(secret: str, handle: Callable[[dict], int], host: str = "127.0.0
             path.unlink(missing_ok=True)
         elif result == RETRY and attempts.get(path, 0) + 1 < max_attempts:
             attempts[path] = attempts.get(path, 0) + 1
-            timer = threading.Timer(retry_delay * 2 ** (attempts[path] - 1), enqueue, [path])
-            timer.daemon = True
-            timer.start()
+            later(path, attempts[path] - 1)
             return
         else:
             spool.fail(path)
             print(f"event {path.stem[:12]} moved to {spool.failed}", file=sys.stderr)
         attempts.pop(path, None)
 
+    def later(path: Path, attempt: int) -> None:
+        timer = threading.Timer(min(retry_delay * 2 ** attempt, MAX_RETRY_DELAY), enqueue, [path])
+        timer.daemon = True
+        timer.start()
+
     def work():
+        spool_failures = 0
         while True:
             path = jobs.get()
             with lock:
@@ -130,11 +140,20 @@ def make_server(secret: str, handle: Callable[[dict], int], host: str = "127.0.0
             try:
                 if path.exists():
                     process(path)
+                spool_failures = 0
+            except Exception as e:  # spool disk trouble: keep the worker and the pending file, try again
+                spool_failures += 1
+                server.healthy = False
+                print(f"error: event spool operation failed: {type(e).__name__}", file=sys.stderr)
+                if path.exists():
+                    later(path, spool_failures)
+            else:
+                server.healthy = True
             finally:
                 jobs.task_done()
 
     server = ThreadingHTTPServer((host, port), Handler)
-    server.jobs, server.spool = jobs, spool
+    server.jobs, server.spool, server.healthy = jobs, spool, True
     for path in spool.waiting():  # deliveries accepted before a restart
         enqueue(path)
     threading.Thread(target=work, name="b2-event-worker", daemon=True).start()

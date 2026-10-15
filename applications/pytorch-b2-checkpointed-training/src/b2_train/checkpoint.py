@@ -72,16 +72,23 @@ def commit(client, bucket, run: str, step: int, staged: Path, **fields) -> dict:
 
 
 def load_manifest(client, bucket, run: str, step: int) -> dict:
-    return storage.load_json(client, bucket, layout.checkpoint_prefix(run, step) + layout.MANIFEST_NAME,
-                             f"checkpoint {run}/step-{step:08d}")
+    what = f"checkpoint {run}/step-{step:08d}"
+    m = storage.load_json(client, bucket, layout.checkpoint_prefix(run, step) + layout.MANIFEST_NAME, what)
+    errors = manifest.file_errors(m)
+    if errors:
+        raise storage.StorageError(f"{what} manifest is inconsistent: " + "; ".join(errors))
+    return m
 
 
 def fetch(client, bucket, run: str, step: int, dest: Path) -> dict:
     m = load_manifest(client, bucket, run, step)
     shutil.rmtree(dest, ignore_errors=True)
-    prefix = layout.checkpoint_prefix(run, step)
+    prefix, root = layout.checkpoint_prefix(run, step), dest.resolve()
     for f in m["files"]:
-        storage.download(client, bucket, prefix + f["path"], dest / f["path"], f["size"], f["sha256"])
+        target = (dest / f["path"]).resolve()
+        if root not in target.parents:  # second guard behind safe_path: never write outside dest
+            raise storage.StorageError(f"{f['path']}: resolves outside {dest}")
+        storage.download(client, bucket, prefix + f["path"], target, f["size"], f["sha256"])
     return m
 
 

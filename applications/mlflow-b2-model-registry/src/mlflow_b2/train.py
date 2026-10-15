@@ -30,6 +30,8 @@ def load_manifest(data: Path, schema_dir=schemas.SCHEMA_DIR) -> dict:
         shard = data / f["path"]
         if not shard.exists() or hashlib.sha256(shard.read_bytes()).hexdigest() != f["sha256"]:
             errs.append(f"{f['path']}: missing or checksum differs from manifest")
+    if not errs and m["fingerprint"] != registry.fingerprint(m["files"]):
+        errs.append("fingerprint does not match the listed files")  # it becomes the run's dataset pin
     if errs:
         raise DatasetError("shard manifest invalid:\n  " + "\n  ".join(errs))
     return m

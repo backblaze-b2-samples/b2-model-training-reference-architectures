@@ -8,6 +8,6 @@ Use three manifests, each written last under its prefix:
 
 The dataset pin is `{"id": "<dataset>@<version>", "fingerprint": "<sha256>"}`. The fingerprint is SHA-256 over the sorted lines `path:sha256`, with timestamps excluded, so identical content always reproduces it.
 
-Upload data objects first, verify remote sizes and stored checksums, then write the manifest. Never overwrite a version: identical content is a no-op, and different content is a collision. Training stops on a fingerprint mismatch. Resume uses the newest step whose manifest exists and whose files match. Promotion copies files so pruning can never remove a model.
+Upload data objects first, verify remote sizes and stored checksums, then write the manifest. Never overwrite a version: identical content is a no-op, and different content is a collision. Recompute every fingerprint from the listed files instead of trusting the stored value; training stops on any mismatch. Resume uses the newest step whose manifest exists and whose files match. Promotion verifies the source bytes, then copies them so pruning can never remove a model. Reject manifest paths with empty, `.` or `..` segments, and keep resolved local paths inside their target folder.
 
 Store each object's SHA-256 in user metadata and keep other metadata small, because Object Lock buckets have a lower per-version metadata limit. Manifests never contain credentials or presigned URLs.

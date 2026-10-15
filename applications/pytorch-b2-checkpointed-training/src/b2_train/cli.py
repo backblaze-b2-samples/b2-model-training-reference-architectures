@@ -56,6 +56,9 @@ def cmd_train(a, cfg) -> int:
     c = storage.make_client(cfg)
     ds = storage.load_json(c, cfg.bucket, layout.dataset_prefix(a.dataset, a.version) + layout.MANIFEST_NAME,
                            f"dataset {a.dataset}/{a.version}")
+    errors = manifest.dataset_errors(ds)
+    if errors:  # a pin is only meaningful if the fingerprint really describes the shards
+        raise Refused(f"dataset {a.dataset}/{a.version} manifest is inconsistent: " + "; ".join(errors))
     if a.expect_fingerprint and a.expect_fingerprint != ds["fingerprint"]:
         raise Refused(f"dataset {ds['id']} fingerprint {ds['fingerprint'][:12]} != --expect-fingerprint")
     print(f"dataset {ds['id']} fingerprint={ds['fingerprint'][:12]}")

@@ -30,11 +30,12 @@ flowchart LR
 
 1. Upload data objects first, verify remote sizes and stored checksums, then write the manifest.
 2. Never overwrite a version. Rerunning identical content is a no-op; different content at an existing key is a collision. Publish a new version instead.
-3. Training stops when the shard manifest fingerprint differs from the pinned value.
+3. Consumers recompute every fingerprint from the listed files instead of trusting the stored value. Training stops when the recomputed shard manifest fingerprint differs from the stored one or from the pinned value.
 4. Resume uses the highest step whose manifest exists and whose files match their checksums.
-5. Promotion copies files into the model prefix. It does not reference checkpoints, so pruning can never delete a model.
+5. Promotion verifies the source bytes against the checkpoint manifest, then copies them into the model prefix. It does not reference checkpoints, so pruning can never delete a model.
 6. Store each object's SHA-256 in user metadata, and keep the rest of the metadata small (Object Lock buckets have a lower per-version metadata limit).
 7. Schema versions use semantic versioning. Consumers reject unsupported major versions.
+8. Manifest paths are relative POSIX paths without empty, `.` or `..` segments, and readers also check that resolved local paths stay inside their target folder.
 
 ## Relationship to the AI data provider release contract
 

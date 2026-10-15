@@ -106,18 +106,22 @@ def register_manifest(cfg: Config, client: MlflowClient, s3, key: str,
 
 def handle_payload(cfg: Config, client: MlflowClient, s3, payload: dict,
                    schema_dir=schemas.SCHEMA_DIR) -> int:
-    """Exit-code style: 0 ok, 1 storage error, 2 a manifest was rejected."""
+    """Exit-code style: 0 ok, 1 temporary error (retry), 2 a manifest was rejected.
+
+    A retryable failure wins over a rejection: replaying the whole payload is safe because registered
+    manifests are skipped by fingerprint, and the recoverable work must not be discarded with the rest.
+    """
     keys = events.manifest_keys(payload, cfg.bucket)
     if not keys:
         print("no model manifests in payload; nothing to do")
-    rc = 0
+    retry = rejected = False
     for key in keys:
         try:
             print(register_manifest(cfg, client, s3, key, schema_dir))
         except InvalidManifest as e:
             print(f"rejected {key}: {e}", file=sys.stderr)
-            rc = 2
+            rejected = True
         except storage.StorageError as e:
             print(f"error: {e}", file=sys.stderr)
-            rc = max(rc, 1)
-    return rc
+            retry = True
+    return 1 if retry else 2 if rejected else 0

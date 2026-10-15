@@ -88,11 +88,15 @@ def stored_sha(client, bucket: str, key: str) -> str | None:
     return None if h is None else h["Metadata"].get("sha256", "")
 
 
-def _lock_args(lock_days: int | None) -> dict:
+def lock_until(lock_days: int | None) -> dt.datetime | None:
     if not lock_days:
-        return {}
-    until = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=lock_days)
-    return {"ObjectLockMode": "GOVERNANCE", "ObjectLockRetainUntilDate": until}
+        return None
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0) + dt.timedelta(days=lock_days)
+
+
+def _lock_args(lock_days: int | None, until: dt.datetime | None = None) -> dict:
+    until = until or lock_until(lock_days)
+    return {"ObjectLockMode": "GOVERNANCE", "ObjectLockRetainUntilDate": until} if until else {}
 
 
 def _guard(existing: str | None, sha: str, key: str, overwrite: bool) -> bool:
@@ -117,11 +121,11 @@ def put_file(client, bucket, key, path: Path, *, overwrite=True, lock_days=None,
     return "uploaded"
 
 
-def put_bytes(client, bucket, key, data: bytes, *, overwrite=True, lock_days=None) -> str:
+def put_bytes(client, bucket, key, data: bytes, *, overwrite=True, lock_days=None, until=None) -> str:
     sha = sha256_bytes(data)
     if not _guard(stored_sha(client, bucket, key), sha, key, overwrite):
         return "skipped"
-    lock = _lock_args(lock_days)
+    lock = _lock_args(lock_days, until)
     if lock:  # Object Lock writes must carry an integrity header
         lock["ContentMD5"] = base64.b64encode(hashlib.md5(data).digest()).decode()
     client.put_object(Bucket=bucket, Key=key, Body=data, Metadata={"sha256": sha},
@@ -172,12 +176,56 @@ def download(client, bucket, key: str, dest: Path, size: int, sha: str) -> None:
         raise StorageError(f"{key}: downloaded content differs from manifest")
 
 
-def copy(client, bucket, src_key: str, dst_key: str, sha: str, *, lock_days=None, multipart_mb=64) -> None:
-    """Server-side copy; switches to UploadPartCopy above the threshold (CopyObject caps at 5 GB)."""
+def verify_object(client, bucket, key: str, f: dict) -> str:
+    """Hash the stored bytes against a manifest entry and return the ETag they were read at.
+
+    Metadata alone is not trusted: it is whatever the writer claimed. Reading every byte is the price of
+    putting a checksum on a promoted model.
+    """
+    h = head(client, bucket, key)
+    if h is None:
+        raise StorageError(f"{key}: missing")
+    if h["ContentLength"] != f["size"] or h["Metadata"].get("sha256") != f["sha256"]:
+        raise StorageError(f"{key}: size or stored sha256 differs from manifest")
+    body = client.get_object(Bucket=bucket, Key=key, IfMatch=h["ETag"])["Body"]
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: body.read(MB), b""):
+        digest.update(chunk)
+    if digest.hexdigest() != f["sha256"]:
+        raise StorageError(f"{key}: content differs from manifest")
+    return h["ETag"]
+
+
+def copy(client, bucket, src_key: str, dst_key: str, sha: str, *, etag: str, until=None,
+         multipart_mb=64) -> None:
+    """Server-side copy of the verified source version (If-Match on its ETag); switches to
+    UploadPartCopy above the threshold, since CopyObject caps at 5 GB."""
     client.copy({"Bucket": bucket, "Key": src_key}, bucket, dst_key,
                 ExtraArgs={"MetadataDirective": "REPLACE", "Metadata": {"sha256": sha},
-                           **_lock_args(lock_days)},
+                           "CopySourceIfMatch": etag, **_lock_args(None, until)},
                 Config=_transfer(multipart_mb))
+
+
+def retention(h: dict) -> tuple[str | None, dt.datetime | None]:
+    return h.get("ObjectLockMode"), h.get("ObjectLockRetainUntilDate")
+
+
+def ensure_retention(client, bucket, key: str, until: dt.datetime) -> None:
+    """Governance retention can be set or extended without bypassGovernance; never shortened here."""
+    mode, current = retention(head(client, bucket, key) or {})
+    if mode == "GOVERNANCE" and current and current >= until:
+        return
+    client.put_object_retention(Bucket=bucket, Key=key,
+                                Retention={"Mode": "GOVERNANCE", "RetainUntilDate": until})
+
+
+def retention_errors(client, bucket, keys: list[str], until: dt.datetime) -> list[str]:
+    errors = []
+    for key in keys:
+        mode, current = retention(head(client, bucket, key) or {})
+        if mode != "GOVERNANCE" or current is None or current < until:
+            errors.append(f"{key}: retention is {mode or 'none'}, expected GOVERNANCE until {until:%Y-%m-%d}")
+    return errors
 
 
 def delete_keys(client, bucket, keys: list[str]) -> int:

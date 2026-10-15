@@ -1,9 +1,11 @@
 import json
 
+import pytest
 import torch
-from conftest import BUCKET, get_json
+from conftest import BUCKET, ROOT, get_json
+from jsonschema import Draft202012Validator
 
-from b2_train import checkpoint, layout, train
+from b2_train import checkpoint, layout, manifest, storage, train
 
 TRAIN = ["train", "--run-id", "r1", "--checkpoint-every", "3"]
 
@@ -99,3 +101,52 @@ def test_train_needs_published_dataset_and_single_process(s3, run, capsys, monke
     monkeypatch.setenv("WORLD_SIZE", "2")
     assert run(TRAIN) == 2
     assert run(["train", "--run-id", "Bad/Run"]) == 2
+
+
+def test_train_refuses_manifest_whose_fingerprint_does_not_match_shards(published, s3, run, capsys):
+    """Changed shards under an unchanged top-level fingerprint must not train under the original pin."""
+    key = layout.dataset_prefix("synthetic-shapes", "v1") + layout.MANIFEST_NAME
+    m = get_json(s3, key)
+    m["files"][0]["sha256"] = "0" * 64  # content changed, pin left alone
+    s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(m).encode())
+    assert run(TRAIN + ["--expect-fingerprint", published["fingerprint"]]) == 2
+    assert "fingerprint does not match" in capsys.readouterr().err
+    assert checkpoint.scan(s3, BUCKET, "r1") == {}
+
+
+def test_checkpoint_paths_cannot_escape_restore_directory(published, s3, run, tmp_path):
+    assert run(TRAIN + ["--max-steps", "3"]) == 0
+    key = layout.checkpoint_prefix("r1", 3) + layout.MANIFEST_NAME
+    m = get_json(s3, key)
+    m["files"].append({"path": "../escaped.txt", "size": 1, "sha256": "1" * 64})
+    m["fingerprint"] = manifest.fingerprint(m["files"])
+    s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(m).encode())
+    restore = tmp_path / "scratch" / "restore"
+    with pytest.raises(storage.StorageError, match="unsafe path"):
+        checkpoint.fetch(s3, BUCKET, "r1", 3, restore)
+    assert not (restore.parent / "escaped.txt").exists()
+
+
+PATH_RULES = [("shard-manifest", ("$defs", "path")),
+              ("checkpoint-manifest", ("$defs", "files", "items", "properties", "path")),
+              ("model-manifest", ("$defs", "files", "items", "properties", "path"))]
+
+
+@pytest.mark.parametrize("path", ["../x", "a/../b", "./x", "/x", "a//b", "a/..", "a/./b", ".."])
+def test_unsafe_paths_rejected_by_schemas_and_code(path):
+    for name, where in PATH_RULES:
+        rule = json.loads((ROOT / "schemas" / f"{name}.schema.json").read_text())
+        for part in where:
+            rule = rule[part]
+        assert not Draft202012Validator(rule).is_valid(path), (name, path)
+    assert not manifest.safe_path(path)
+
+
+@pytest.mark.parametrize("path", ["shards/train-000000.tar", ".metadata", "__0_0.distcp", "a/b.c"])
+def test_ordinary_paths_still_valid(path):
+    for name, where in PATH_RULES:
+        rule = json.loads((ROOT / "schemas" / f"{name}.schema.json").read_text())
+        for part in where:
+            rule = rule[part]
+        assert Draft202012Validator(rule).is_valid(path), (name, path)
+    assert manifest.safe_path(path)
