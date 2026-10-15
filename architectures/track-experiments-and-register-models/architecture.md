@@ -1,6 +1,6 @@
 # Track experiments and register models with a B2 artifact store
 
-Evidence reviewed: 2026-10-14. The MLflow B2 artifact repository from source (`mlflow/store/artifact/b2_artifact_repo.py`), W&B and ClearML storage handlers from source and documentation review, B2 event notification documentation, and moto-backed tests in the [MLflow sample](../../applications/mlflow-b2-model-registry/README.md). See [Evidence and validation scope](#evidence-and-validation-scope).
+Evidence reviewed: 2026-10-15. The MLflow B2 artifact repository from source (`mlflow/store/artifact/b2_artifact_repo.py`), W&B, ClearML, and Aim storage handlers from source and documentation review, B2 event notification documentation, and moto-backed tests in the [MLflow sample](../../applications/mlflow-b2-model-registry/README.md). See [Evidence and validation scope](#evidence-and-validation-scope).
 
 ## Workload
 
@@ -54,6 +54,7 @@ The plain S3 path also works: `s3://<bucket>/<path>` with `MLFLOW_S3_ENDPOINT_UR
 |---|---|---|
 | Weights & Biases | Reference artifacts on `s3://` URIs; the S3 handler reads `AWS_S3_ENDPOINT_URL` | W&B stores the reference and checksums; the bytes stay in your bucket |
 | ClearML | `output_uri` on the B2 endpoint with host-specific credentials in `clearml.conf` | ClearML documents B2 among non-AWS S3 endpoints |
+| Aim | S3 artifacts backend with `endpoint_url` passed to its boto3 client | Only logged artifacts go to B2; Aim keeps metrics and run metadata in local RocksDB and SQLite, so back those up separately |
 
 ## Event-driven registration
 
@@ -122,6 +123,7 @@ Filter on the manifest key, not on every object: a model with many files would o
 | MLflow | Tracking, artifacts, registry | Native `b2://` URIs | Source 2026-10-14; sample tests |
 | Weights & Biases | Tracking with reference artifacts | `AWS_S3_ENDPOINT_URL` | Source review 2026-05 |
 | ClearML | Tracking and model repository | `output_uri` plus `clearml.conf` host credentials | Documentation 2026-10-14 |
+| Aim | Tracking with artifacts on B2 | S3 artifacts backend `endpoint_url` | Source review 2026-08 |
 
 ## Sample application
 

@@ -23,7 +23,7 @@ Save sharded checkpoints to local disk, upload them to B2 with a manifest writte
 - **Audience:** ML engineers running long or preemptible training jobs, Training infrastructure teams, Security and storage architects
 - **Problem:** Survive node loss, preemption, and job restarts on any compute provider without losing progress or resuming from a half-written checkpoint.
 - **Workflow:** Save a sharded checkpoint to local staging on each rank → Upload shards in parallel with multipart transfers → Write the checkpoint manifest last as the commit marker → On restart, list checkpoints and resume from the newest one that has a manifest → Promote a selected checkpoint to an Object Lock models prefix with lineage → Prune superseded checkpoints and let lifecycle rules purge hidden versions
-- **Integrations:** PyTorch (s3-compatible endpoint), Ray Train, Tune, and Data (s3-compatible endpoint), PyTorch Lightning (candidate, needs acceptance test)
+- **Integrations:** PyTorch (s3-compatible endpoint), Ray Train, Tune, and Data (s3-compatible endpoint), PyTorch Lightning (candidate, needs acceptance test), JAX with TensorStore (candidate, needs acceptance test)
 - **Expected scale:** Checkpoints from megabytes to multiple terabytes written every few minutes to hours. Upload throughput, not storage capacity, bounds checkpoint frequency. Stage locally, upload asynchronously, and parallelize per shard. Standard B2 is the default; evaluate B2 Overdrive when checkpoint upload time limits training cadence.
 - **Evidence:** source-reviewed-and-automated-tests (2026-10-14)
 
@@ -34,7 +34,7 @@ Keep tracking metadata in a database, store run artifacts and registered model f
 - **Audience:** ML engineers and data scientists, MLOps platform teams, Model governance reviewers
 - **Problem:** Keep model files, evaluation artifacts, and lineage durable and shareable across teams while the tracking server stays small and stateless apart from its database.
 - **Workflow:** Run the tracking server with a database backend and a B2 artifact root → Log parameters, metrics, the dataset pin, and artifacts from training jobs → Register a model version from run artifacts → Promote a version by alias after evaluation → Register models written by external training jobs when their manifest-created event arrives
-- **Integrations:** MLflow (native b2 backend), Weights & Biases (s3-compatible endpoint), ClearML (s3-compatible endpoint)
+- **Integrations:** MLflow (native b2 backend), Weights & Biases (s3-compatible endpoint), ClearML (s3-compatible endpoint), Aim (s3-compatible endpoint)
 - **Expected scale:** Thousands of runs per month with artifacts from kilobytes to hundreds of gigabytes. Metadata scale is bound by the tracking database, not B2. Large model files use multipart uploads from the client; proxied artifact serving moves that bandwidth onto the tracking server.
 - **Evidence:** source-reviewed-and-automated-tests (2026-10-14)
 
@@ -45,7 +45,7 @@ Version training data on B2 with a data-versioning tool or immutable release pre
 - **Audience:** ML engineers who need reproducible experiments, Data engineers who maintain training datasets, Model governance and audit teams
 - **Problem:** Reproduce or audit a training run months later even though the underlying dataset kept changing.
 - **Workflow:** Store dataset objects on B2 under a versioning tool or immutable version prefixes → Commit or tag a dataset version and record its identifier and fingerprint → Resolve the pinned version at training start and refuse mismatches → Write the pin into checkpoint, model, and tracking metadata → Retain pinned versions for as long as models trained on them are in use
-- **Integrations:** lakeFS (s3-compatible endpoint), DVC (s3-compatible endpoint), Hugging Face Datasets (s3-compatible endpoint)
+- **Integrations:** lakeFS (s3-compatible endpoint), DVC (s3-compatible endpoint), Hugging Face Datasets (s3-compatible endpoint), Pachyderm (candidate, needs acceptance test)
 - **Expected scale:** Datasets from gigabytes to petabytes with frequent incremental updates. Versioning tools deduplicate unchanged objects, so storage grows with changed data rather than with the number of versions.
 - **Evidence:** source-reviewed (2026-10-14)
 
@@ -56,7 +56,7 @@ Run preprocessing, training, evaluation, and registration as pipeline steps that
 - **Audience:** MLOps platform teams, ML engineers automating retraining, Kubernetes platform operators
 - **Problem:** Make multi-step training workflows reproducible and restartable, and start retraining automatically when a new dataset version is published.
 - **Workflow:** Configure the orchestrator's artifact store on B2 → Pass step outputs between pipeline steps as B2 objects → Publish a new dataset version and write its manifest last → Receive the manifest-created event, verify it, and trigger the pipeline → Train, evaluate, and register the model with lineage to the triggering dataset version
-- **Integrations:** ZenML (native b2 backend), Kubeflow Pipelines (s3-compatible endpoint), Metaflow (s3-compatible endpoint), Flyte (s3-compatible endpoint), Kedro (s3-compatible endpoint), Argo Workflows (s3-compatible endpoint)
+- **Integrations:** ZenML (native b2 backend), Kubeflow Pipelines (s3-compatible endpoint), Metaflow (s3-compatible endpoint), Flyte (s3-compatible endpoint), Kedro (s3-compatible endpoint), Argo Workflows (s3-compatible endpoint), Dagster (s3-compatible endpoint), Prefect (s3-compatible endpoint), MLRun (s3-compatible endpoint)
 - **Expected scale:** Tens to thousands of pipeline runs per day with intermediate artifacts of any size. Intermediate artifacts dominate object count; expire them with lifecycle rules and keep only registered models and pinned datasets long term.
 - **Evidence:** source-reviewed (2026-10-14)
 

@@ -1,6 +1,6 @@
 # Checkpoint distributed training to B2 and resume after interruption
 
-Evidence reviewed: 2026-10-14. PyTorch distributed checkpoint (DCP) and Ray Train storage from source review; PyTorch Lightning from documentation; B2 Object Lock, lifecycle, and key documentation; moto-backed tests in the [PyTorch sample](../../applications/pytorch-b2-checkpointed-training/README.md). See [Evidence and validation scope](#evidence-and-validation-scope).
+Evidence reviewed: 2026-10-15. PyTorch distributed checkpoint (DCP) and Ray Train storage from source review; PyTorch Lightning and TensorStore (for JAX) from documentation; B2 Object Lock, lifecycle, and key documentation; moto-backed tests in the [PyTorch sample](../../applications/pytorch-b2-checkpointed-training/README.md). See [Evidence and validation scope](#evidence-and-validation-scope).
 
 ## Workload
 
@@ -107,6 +107,7 @@ DCP saves a sharded checkpoint plus metadata that describes the global tensors, 
 | PyTorch DCP | `dcp.save` to local staging and upload, as in the sample; or `FsspecWriter("s3://bucket/checkpoints/run/step", ...)` with s3fs configured for the B2 endpoint to write directly |
 | Ray Train and Tune | `RunConfig(storage_path="bucket/run", storage_filesystem=pyarrow.fs.S3FileSystem(endpoint_override=...))`; Ray uploads each reported checkpoint |
 | PyTorch Lightning | `ModelCheckpoint(dirpath="s3://...")` through fsspec with storage options for the B2 endpoint. This is a candidate: test it before adopting |
+| JAX with TensorStore | `jax.experimental.array_serialization` or Orbax writing through TensorStore's `s3` driver with `endpoint` set to the B2 endpoint. This is a candidate: TensorStore documents that S3-compatible stores may not provide the atomicity it expects, so validate save and restore, and keep the manifest-last commit marker on top |
 
 Writing directly to object storage removes the staging disk but makes training wait on the upload, unless the writer is asynchronous. Staging locally is the default because it isolates training from network stalls.
 
@@ -139,6 +140,7 @@ A server-side copy between buckets needs read access to the source and write acc
 | PyTorch DCP | Sharded checkpoints | Local staging plus upload, or `FsspecWriter` with s3fs | Source review; sample tests 2026-10-14 |
 | Ray Train and Tune | Checkpoint persistence | `storage_filesystem` with `endpoint_override` | Source review 2026-05 |
 | PyTorch Lightning | Checkpoint callbacks | fsspec paths (candidate) | Documentation 2026-10-14 |
+| JAX with TensorStore | Sharded array checkpoints | TensorStore `s3` driver `endpoint` (candidate) | Source review 2026-07; documentation 2026-10-15 |
 
 ## Sample application
 

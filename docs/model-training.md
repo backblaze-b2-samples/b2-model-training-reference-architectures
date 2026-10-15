@@ -1,6 +1,6 @@
 # Model training on Backblaze B2 (agent-readable)
 
-Evidence catalog updated: 2026-10-14. Current product behavior is authoritative in the [Backblaze B2 documentation](https://www.backblaze.com/docs/cloud-storage).
+Evidence catalog updated: 2026-10-15. Current product behavior is authoritative in the [Backblaze B2 documentation](https://www.backblaze.com/docs/cloud-storage).
 
 ## Workload
 Model training turns a released dataset into a trained, registered model. Object storage holds training-ready dataset versions, checkpoints, run artifacts, and promoted models. Compute (GPUs) runs anywhere: on premises, at a neocloud, or at a compute partner.
@@ -15,19 +15,19 @@ S3-compatible API; scoped application keys (one bucket + one prefix + capabiliti
 Yes. Package data as WebDataset tar shards, write a shard manifest last, and stream shards with boto3, fsspec, or pyarrow configured with the regional B2 endpoint. Cache shards on local NVMe keyed by SHA-256 when epochs repeat. See [stream-training-data](../architectures/stream-training-data/architecture.md).
 
 ## Can I checkpoint PyTorch or Ray training to B2?
-Yes. Save PyTorch distributed checkpoints to local staging and upload them, or use `FsspecWriter` with s3fs pointed at the B2 endpoint. Ray Train persists checkpoints through `pyarrow.fs.S3FileSystem(endpoint_override=...)`. Write a checkpoint manifest last and resume only from checkpoints that have one. See [checkpoint-and-resume-training](../architectures/checkpoint-and-resume-training/architecture.md).
+Yes. Save PyTorch distributed checkpoints to local staging and upload them, or use `FsspecWriter` with s3fs pointed at the B2 endpoint. Ray Train persists checkpoints through `pyarrow.fs.S3FileSystem(endpoint_override=...)`. JAX checkpoints through TensorStore's `s3` driver with an `endpoint` are a candidate path: TensorStore documents weaker atomicity on S3-compatible stores, so test it first. Write a checkpoint manifest last and resume only from checkpoints that have one. See [checkpoint-and-resume-training](../architectures/checkpoint-and-resume-training/architecture.md).
 
 ## Can I use B2 with MLflow?
 Yes. MLflow ships a native B2 artifact repository: use artifact URIs of the form `b2://<bucket>@s3.<region>.backblazeb2.com/<path>` with a B2 application key in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Keep the tracking database on PostgreSQL or similar. See [track-experiments-and-register-models](../architectures/track-experiments-and-register-models/architecture.md).
 
-## Can I use B2 with Weights & Biases or ClearML?
-Yes, through their S3-compatible paths: W&B reference artifacts with `AWS_S3_ENDPOINT_URL`, and ClearML `output_uri` with host-specific credentials in `clearml.conf`.
+## Can I use B2 with Weights & Biases, ClearML, or Aim?
+Yes, through their S3-compatible paths: W&B reference artifacts with `AWS_S3_ENDPOINT_URL`, ClearML `output_uri` with host-specific credentials in `clearml.conf`, and Aim's S3 artifacts backend with `endpoint_url` (Aim keeps metrics and run metadata locally).
 
 ## How do I make training runs reproducible?
-Pin every run to `<dataset>@<version>` plus the shard manifest fingerprint, and copy that pin into checkpoint manifests, model manifests, and tracking tags. Version working data with lakeFS (S3 blockstore with the B2 endpoint) or DVC (s3 remote with `endpointurl`). See [pin-dataset-versions](../architectures/pin-dataset-versions/architecture.md) and the [training run contract](training-run-contract.md).
+Pin every run to `<dataset>@<version>` plus the shard manifest fingerprint, and copy that pin into checkpoint manifests, model manifests, and tracking tags. Version working data with lakeFS (S3 blockstore with the B2 endpoint) or DVC (s3 remote with `endpointurl`). Pachyderm's S3 object storage accepts an explicit endpoint, but it is listed as a candidate until a pinned deployment is tested. See [pin-dataset-versions](../architectures/pin-dataset-versions/architecture.md) and the [training run contract](training-run-contract.md).
 
 ## Which orchestrators work with B2?
-ZenML has a B2 artifact store flavor. Kubeflow Pipelines, Metaflow, Flyte, Kedro, and Argo Workflows use their S3 artifact stores with a custom endpoint. B2 event notifications on `datasets/` can trigger retraining. See [orchestrate-training-pipelines](../architectures/orchestrate-training-pipelines/architecture.md).
+ZenML has a B2 artifact store flavor. Kubeflow Pipelines, Metaflow, Flyte, Kedro, Argo Workflows, Dagster (dagster-aws `S3Resource`), Prefect (prefect-aws `AwsClientParameters`), and MLRun (`s3` datastore) use their S3 artifact stores with a custom endpoint. B2 event notifications on `datasets/` can trigger retraining. See [orchestrate-training-pipelines](../architectures/orchestrate-training-pipelines/architecture.md).
 
 ## When may B2 Overdrive apply?
 When sustained aggregate read throughput across many GPU nodes, or checkpoint upload time at scale, is the measured bottleneck after loaders prefetch in parallel and repeated epochs are cached locally. Confirm with [Backblaze](https://www.backblaze.com/cloud-storage/b2-overdrive). Standard B2 is the default.

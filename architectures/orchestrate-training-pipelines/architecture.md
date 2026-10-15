@@ -1,6 +1,6 @@
 # Orchestrate training pipelines and retrain when new data lands
 
-Evidence reviewed: 2026-10-14. ZenML B2 integration from source; Kubeflow Pipelines, Metaflow, Flyte, Kedro, and Argo Workflows storage configuration from source review; B2 event notification documentation; signed-event handling tested in the [MLflow sample](../../applications/mlflow-b2-model-registry/README.md). This architecture is source-reviewed and has no dedicated sample. See [Evidence and validation scope](#evidence-and-validation-scope).
+Evidence reviewed: 2026-10-15. ZenML B2 integration from source; Kubeflow Pipelines, Metaflow, Flyte, Kedro, Argo Workflows, Dagster, Prefect, and MLRun storage configuration from source review; B2 event notification documentation; signed-event handling tested in the [MLflow sample](../../applications/mlflow-b2-model-registry/README.md). This architecture is source-reviewed and has no dedicated sample. See [Evidence and validation scope](#evidence-and-validation-scope).
 
 ## Workload
 
@@ -33,6 +33,9 @@ flowchart LR
 | Flyte | `storage.type: s3`, `storage.connection.endpoint`, access-key authentication | Receiver launches an execution through FlyteAdmin |
 | Kedro | Catalog `credentials` with `client_kwargs.endpoint_url` passed to s3fs | Receiver runs `kedro run` in a job; Kedro has no built-in trigger API |
 | Argo Workflows | S3 artifact repository with `endpoint`, `bucket`, `region`, and key secrets | Receiver submits a WorkflowTemplate; Argo Events can also consume webhooks |
+| Dagster | dagster-aws `S3Resource` and S3 IO managers with `endpoint_url` | Receiver launches a job run through the Dagster GraphQL API, or a sensor polls for new manifests |
+| Prefect | prefect-aws `S3Bucket` with `AwsClientParameters(endpoint_url=...)` | Receiver creates a flow run from a deployment through the Prefect API |
+| MLRun | `s3` datastore with `AWS_ENDPOINT_URL_S3` or a `DatastoreProfileS3` with `endpoint_url` | Receiver runs the project workflow through the MLRun API |
 
 Every orchestrator keeps its metadata in its own database. Only artifacts and checkpoints live on B2.
 

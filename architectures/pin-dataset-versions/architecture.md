@@ -1,6 +1,6 @@
 # Pin dataset versions for reproducible training runs
 
-Evidence reviewed: 2026-10-14. lakeFS and DVC storage paths from source review; Hugging Face Datasets from documentation; fingerprint pinning exercised by the [PyTorch sample](../../applications/pytorch-b2-checkpointed-training/README.md) tests. This architecture is source-reviewed and has no dedicated sample. See [Evidence and validation scope](#evidence-and-validation-scope).
+Evidence reviewed: 2026-10-15. lakeFS, DVC, and Pachyderm storage paths from source review; Hugging Face Datasets from documentation; fingerprint pinning exercised by the [PyTorch sample](../../applications/pytorch-b2-checkpointed-training/README.md) tests. This architecture is source-reviewed and has no dedicated sample. See [Evidence and validation scope](#evidence-and-validation-scope).
 
 ## Workload
 
@@ -35,6 +35,7 @@ flowchart LR
 | lakeFS | `blockstore.type: s3`, `blockstore.s3.endpoint: https://s3.<region>.backblazeb2.com`, `blockstore.s3.region`, `blockstore.s3.force_path_style: true`, and a scoped key. Repository storage namespace `s3://<bucket>/<repo>`. Clients then read `s3://<repo>/<ref>/<path>` through the lakeFS S3 gateway or the lakeFS API. |
 | DVC | `dvc remote add -d storage s3://<bucket>/dvc` then `dvc remote modify storage endpointurl https://s3.<region>.backblazeb2.com` and `region <region>`. Keys go in `.dvc/config.local` or environment variables, never in the committed config. |
 | Hugging Face Datasets | `load_dataset(..., data_files="s3://<bucket>/datasets/<dataset>/<version>/*.parquet", storage_options={"key": ..., "secret": ..., "client_kwargs": {"endpoint_url": ...}})` |
+| Pachyderm (candidate) | S3 object storage through gocloud.dev blob URLs with an explicit endpoint parameter (`src/internal/obj/bucket.go`). Confirm the deployment configuration and the project's maintenance status on a pinned release before relying on it. Pachyderm also records pipeline provenance, which complements the manifest pins here. |
 
 Existing samples: [lakeFS on B2 quickstart](https://github.com/backblaze-b2-samples/lakefs-on-b2-quickstart) and the [lakeFS dataset-versioning notebook](https://github.com/backblaze-b2-samples/notebooks).
 

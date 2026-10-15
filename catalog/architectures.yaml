@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-updated: "2026-10-14"
+updated: "2026-10-15"
 canonical_documentation: https://www.backblaze.com/docs/cloud-storage-ai-machine-learning
 architectures:
   - id: stream-training-data
@@ -143,6 +143,13 @@ architectures:
         connection: fsspec-backed checkpoint paths with storage options for the B2 endpoint
         url: https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
         evidence: Lightning remote-filesystem checkpoint documentation reviewed 2026-10-14; B2 behavior not yet tested in this repository
+      - id: jax-tensorstore
+        name: JAX with TensorStore
+        role: Sharded array checkpoints for JAX training through TensorStore
+        support: candidate
+        connection: TensorStore s3 key-value store driver with its endpoint option set to the B2 endpoint; TensorStore documents that S3-compatible stores may not give the atomicity it expects, so test the checkpoint commit protocol before adopting
+        url: https://google.github.io/tensorstore/kvstore/s3/index.html
+        evidence: JAX array serialization source review recorded 2026-07; TensorStore s3 driver documentation reviewed 2026-10-15; B2 behavior not yet tested in this repository
     prerequisites:
       - Separate B2 buckets or prefixes for checkpoints and promoted models
       - An Object-Lock-enabled models bucket when promoted models must be immutable
@@ -222,6 +229,13 @@ architectures:
         connection: output_uri on the B2 endpoint with host-specific credentials in clearml.conf
         url: https://clear.ml/docs/latest/docs/integrations/storage/
         evidence: ClearML storage documentation lists Backblaze B2 under non-AWS S3 endpoints; reviewed 2026-10-14
+      - id: aim
+        name: Aim
+        role: Experiment tracking with logged artifacts in object storage
+        support: s3-compatible-endpoint
+        connection: S3 artifacts backend with endpoint_url passed to its boto3 client; metrics and run metadata stay in Aim's local RocksDB and SQLite stores
+        url: https://aimstack.readthedocs.io/en/latest/using/artifacts.html
+        evidence: Aim artifact storage source review recorded 2026-08 (aim/storage/artifacts); artifacts documentation reviewed 2026-10-15
     prerequisites:
       - A tracking database such as PostgreSQL on block storage
       - A B2 bucket for run artifacts and registered models
@@ -299,6 +313,13 @@ architectures:
         connection: fsspec storage_options with client_kwargs.endpoint_url set to the B2 endpoint
         url: https://huggingface.co/docs/datasets/filesystems
         evidence: Hugging Face Datasets filesystem documentation reviewed 2026-10-14
+      - id: pachyderm
+        name: Pachyderm
+        role: Data versioning and pipeline provenance
+        support: candidate
+        connection: S3 object storage through gocloud.dev blob URLs with an explicit endpoint parameter; deployment configuration and current maintenance status need confirmation on a pinned release
+        url: https://github.com/pachyderm/pachyderm/blob/master/src/internal/obj/bucket.go
+        evidence: Pachyderm object storage source review recorded 2026-07 (src/internal/obj/bucket.go); no deployment tested in this repository
     prerequisites:
       - A B2 bucket for the versioning tool's storage namespace or immutable dataset prefixes
       - The versioning tool's metadata store where it needs one, such as the lakeFS database
@@ -394,6 +415,27 @@ architectures:
         connection: S3 artifact repository with an explicit endpoint, bucket, and key secrets
         url: https://argo-workflows.readthedocs.io/en/latest/configure-artifact-repository/
         evidence: Argo Workflows S3 artifact driver source review recorded 2026-05 (workflow/artifacts/s3/s3.go)
+      - id: dagster
+        name: Dagster
+        role: Asset-based data and ML pipeline orchestration
+        support: s3-compatible-endpoint
+        connection: dagster-aws S3Resource and S3 IO managers with endpoint_url set to the B2 endpoint
+        url: https://docs.dagster.io/api/libraries/dagster-aws
+        evidence: dagster-aws resource source review recorded 2026-07; dagster-aws API documentation reviewed 2026-10-15
+      - id: prefect
+        name: Prefect
+        role: Python workflow orchestration with storage blocks
+        support: s3-compatible-endpoint
+        connection: prefect-aws S3Bucket with AwsClientParameters(endpoint_url=...) set to the B2 endpoint
+        url: https://github.com/PrefectHQ/prefect/blob/main/src/integrations/prefect-aws/prefect_aws/client_parameters.py
+        evidence: prefect-aws client parameter source review recorded 2026-05 and rechecked 2026-10-15
+      - id: mlrun
+        name: MLRun
+        role: ML orchestration with artifact, model, and dataset stores
+        support: s3-compatible-endpoint
+        connection: s3 datastore with AWS_ENDPOINT_URL_S3 or a DatastoreProfileS3 endpoint_url set to the B2 endpoint
+        url: https://docs.mlrun.org/en/stable/store/datastore.html
+        evidence: MLRun datastore source review recorded 2026-07 (mlrun/datastore/s3.py); datastore documentation reviewed 2026-10-15
     prerequisites:
       - An orchestrator deployment with its metadata database off B2
       - A B2 bucket or prefix for pipeline artifacts with lifecycle rules for intermediate outputs
