@@ -12,7 +12,7 @@ Package a released dataset as immutable WebDataset shards on B2, then stream the
 - **Audience:** ML platform engineers, Training infrastructure teams, Data engineers preparing training-ready datasets
 - **Problem:** Feed many GPU workers from one durable copy of a large dataset without copying it to every node first, while proving which exact dataset version each run consumed.
 - **Workflow:** Package a released dataset into sequential tar shards and write the shard manifest last → Pin the run to a dataset version and verify its fingerprint before training starts → Assign shards to ranks and data-loader workers → Stream shards over the S3-compatible API with ranged or sequential GETs → Cache hot shards on local NVMe keyed by SHA-256 when epochs re-read the same data → Record the dataset pin in every checkpoint and model manifest
-- **Integrations:** PyTorch (s3-compatible endpoint), WebDataset (s3-compatible endpoint), Ray Train and Ray Data (s3-compatible endpoint), TensorFlow with tensorflow-io (s3-compatible endpoint), Hugging Face Datasets (s3-compatible endpoint)
+- **Integrations:** PyTorch (s3-compatible endpoint), WebDataset (s3-compatible endpoint), Ray Train, Tune, and Data (s3-compatible endpoint), TensorFlow with tensorflow-io (s3-compatible endpoint), Hugging Face Datasets (s3-compatible endpoint)
 - **Expected scale:** Multi-node GPU training reading terabytes per epoch. Standard B2 is the default. Measure per-worker throughput and GPU idle time first; consider a local cache for repeated epochs and B2 Overdrive when aggregate object-store throughput is the bottleneck.
 - **Evidence:** source-reviewed-and-automated-tests (2026-10-14)
 
@@ -23,7 +23,7 @@ Save sharded checkpoints to local disk, upload them to B2 with a manifest writte
 - **Audience:** ML engineers running long or preemptible training jobs, Training infrastructure teams, Security and storage architects
 - **Problem:** Survive node loss, preemption, and job restarts on any compute provider without losing progress or resuming from a half-written checkpoint.
 - **Workflow:** Save a sharded checkpoint to local staging on each rank → Upload shards in parallel with multipart transfers → Write the checkpoint manifest last as the commit marker → On restart, list checkpoints and resume from the newest one that has a manifest → Promote a selected checkpoint to an Object Lock models prefix with lineage → Prune superseded checkpoints and let lifecycle rules purge hidden versions
-- **Integrations:** PyTorch (s3-compatible endpoint), Ray Train and Ray Data (s3-compatible endpoint), PyTorch Lightning (candidate, needs acceptance test)
+- **Integrations:** PyTorch (s3-compatible endpoint), Ray Train, Tune, and Data (s3-compatible endpoint), PyTorch Lightning (candidate, needs acceptance test)
 - **Expected scale:** Checkpoints from megabytes to multiple terabytes written every few minutes to hours. Upload throughput, not storage capacity, bounds checkpoint frequency. Stage locally, upload asynchronously, and parallelize per shard. Standard B2 is the default; evaluate B2 Overdrive when checkpoint upload time limits training cadence.
 - **Evidence:** source-reviewed-and-automated-tests (2026-10-14)
 

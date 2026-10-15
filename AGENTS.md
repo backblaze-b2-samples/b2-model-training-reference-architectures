@@ -33,6 +33,6 @@ cd applications/mlflow-b2-model-registry && python3 -m pytest
 - Use scoped application keys. Keep master or administrative keys out of runtime services. Training workers read datasets and never write them.
 - Write `manifest.json` last under every dataset, checkpoint, and model prefix. Never resume from or register a prefix without one.
 - Pin runs to `<dataset>@<version>` plus the fingerprint, and carry the pin into every checkpoint, model, and tracking record.
-- Promote by copy, not by reference, and lock promoted models in governance mode by default.
+- Promote by copy, not by reference. Retention is an explicit decision at promotion: governance-mode Object Lock for models that production or audits depend on, with the duration set by deployment policy; an unlocked promotion must be an explicit opt-out, never a silent default.
 - Keep tracking, registry, and orchestrator databases, queues, and hot caches off B2.
 - Never commit credentials, customer data, webhook secrets, or real presigned URLs.

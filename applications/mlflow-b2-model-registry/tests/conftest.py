@@ -49,24 +49,30 @@ def run(cfg, monkeypatch):
     return cli.main
 
 
-def model_manifest(model="shapes-classifier", version="v2", fingerprint="c" * 64, **overrides):
+def fingerprint(files: list[dict]) -> str:
+    """Independent copy of the training run contract rule, so tests do not trust the implementation."""
+    lines = "\n".join(f"{f['path']}:{f['sha256']}" for f in sorted(files, key=lambda f: f["path"]))
+    return hashlib.sha256(lines.encode()).hexdigest()
+
+
+def model_manifest(model="shapes-classifier", version="v2", weights=WEIGHTS, **overrides):
+    files = [{"path": "model.pt", "size": len(weights), "sha256": hashlib.sha256(weights).hexdigest()}]
     m = {
         "schema_version": "1.0.0", "id": f"{model}@{version}", "model": model, "version": version,
         "format": "torch.save", "framework": {"name": "torch", "version": "2.5.0"},
         "source": {"run_id": "run-0001", "step": 120, "checkpoint_fingerprint": "a" * 64},
         "dataset": {"id": "synthetic-shapes@v1", "fingerprint": "b" * 64},
         "metrics": {"val_accuracy": 0.9},
-        "files": [{"path": "model.pt", "size": len(WEIGHTS),
-                   "sha256": hashlib.sha256(WEIGHTS).hexdigest()}],
-        "fingerprint": fingerprint, "retention_mode": "none",
+        "files": files, "fingerprint": fingerprint(files), "retention_mode": "none",
     }
     return {**m, **overrides}
 
 
-def publish(client, manifest, key=None):
-    """Mimic the training app: files first, manifest last."""
+def publish(client, manifest, key=None, weights=WEIGHTS):
+    """Mimic the training app: files first with sha256 metadata, manifest last."""
     base = f"models/{manifest['model']}/{manifest['version']}/"
-    client.put_object(Bucket=BUCKET, Key=base + "model.pt", Body=WEIGHTS)
+    client.put_object(Bucket=BUCKET, Key=base + "model.pt", Body=weights,
+                      Metadata={"sha256": hashlib.sha256(weights).hexdigest()})
     key = key or base + "manifest.json"
     client.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(manifest).encode())
     return key

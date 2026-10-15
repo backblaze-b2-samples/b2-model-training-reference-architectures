@@ -7,7 +7,7 @@ def test_end_to_end_prints_no_secrets(s3, run, shapes, tmp_path, capsys):
     cache = str(tmp_path / "cache")
     assert run(["publish-dataset", "--src", str(shapes)]) == 0
     assert run(["train", "--run-id", "e2e", "--checkpoint-every", "4", "--cache-dir", cache]) == 0
-    assert run(["promote", "--run-id", "e2e", "--model", "shapes-cnn", "--model-version", "v1"]) == 0
+    assert run(["promote", "--run-id", "e2e", "--model", "shapes-cnn", "--model-version", "v1", "--no-lock"]) == 0
     assert run(["prune", "--run-id", "e2e", "--keep", "1"]) == 0
     out = capsys.readouterr()
     text = out.out + out.err

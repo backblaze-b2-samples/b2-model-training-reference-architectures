@@ -1,4 +1,5 @@
 import http.client
+import json
 import threading
 import time
 import urllib.error
@@ -11,11 +12,12 @@ from mlflow_b2 import events, registry, server
 
 
 @pytest.fixture
-def serve():
+def serve(tmp_path):
     started = []
 
-    def start(handle):
-        srv = server.make_server(EVENT_SECRET, handle, "127.0.0.1", 0)
+    def start(handle, **kw):
+        kw = {"spool_dir": tmp_path / "spool", "retry_delay": 0.01, **kw}
+        srv = server.make_server(EVENT_SECRET, handle, "127.0.0.1", 0, **kw)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         started.append(srv)
         return srv
@@ -43,6 +45,7 @@ def test_acks_before_processing_and_rejects_bad_signature(serve):
     def slow(payload):
         release.wait(5)
         seen.append(payload)
+        return server.OK
 
     srv = serve(slow)
     body = event_body("models/m/v1/manifest.json")
@@ -59,7 +62,7 @@ def test_acks_before_processing_and_rejects_bad_signature(serve):
 
 
 def test_oversized_body_rejected_before_reading(serve):
-    srv = serve(lambda p: None)
+    srv = serve(lambda p: server.OK)
     conn = http.client.HTTPConnection("127.0.0.1", srv.server_port, timeout=5)
     conn.putrequest("POST", "/")
     conn.putheader("Content-Length", str(server.MAX_BODY + 1))
@@ -76,3 +79,62 @@ def test_worker_registers_model(serve, s3, cfg):
     assert _post(srv, body, sign(body)) == 200  # at-least-once redelivery
     srv.jobs.join()
     assert [str(mv.version) for mv in client.search_model_versions("name = 'shapes-classifier'")] == ["1"]
+
+
+def _until(cond, timeout=5.0):
+    end = time.monotonic() + timeout
+    while not cond():
+        assert time.monotonic() < end, "timed out"
+        time.sleep(0.01)
+
+
+def test_delivery_is_persisted_before_ack(serve):
+    release = threading.Event()
+    srv = serve(lambda p: server.OK if release.wait(5) else server.RETRY)
+    body = event_body("models/m/v1/manifest.json")
+    assert _post(srv, body, sign(body)) == 200
+    assert _post(srv, body, sign(body)) == 200  # redelivery of the same body is stored once
+    assert len(srv.spool.waiting()) == 1
+    release.set()
+    _until(lambda: not srv.spool.waiting())
+
+
+def test_temporary_failure_is_retried(serve):
+    results = [server.RETRY, server.RETRY, server.OK]
+    calls = []
+
+    def flaky(payload):
+        calls.append(payload)
+        result = results[len(calls) - 1]
+        if len(calls) == 2:
+            raise RuntimeError("B2 or MLflow briefly unavailable")
+        return result
+
+    srv = serve(flaky)
+    body = event_body("models/m/v1/manifest.json")
+    assert _post(srv, body, sign(body)) == 200
+    _until(lambda: len(calls) == 3 and not srv.spool.waiting())
+    assert list(srv.spool.failed.iterdir()) == []
+
+
+def test_rejected_and_exhausted_events_are_kept_in_failed(serve):
+    srv = serve(lambda p: server.REJECTED)
+    body = event_body("models/m/v1/manifest.json")
+    assert _post(srv, body, sign(body)) == 200
+    _until(lambda: len(list(srv.spool.failed.iterdir())) == 1)
+    calls = []
+    srv2 = serve(lambda p: calls.append(p) or server.RETRY, spool_dir=srv.spool.pending.parent.parent / "s2",
+                 max_attempts=3)
+    body2 = event_body("models/m/v2/manifest.json")
+    assert _post(srv2, body2, sign(body2)) == 200
+    _until(lambda: len(list(srv2.spool.failed.iterdir())) == 1)
+    assert len(calls) == 3 and not srv2.spool.waiting()
+
+
+def test_pending_deliveries_replay_after_restart(serve, tmp_path):
+    body = event_body("models/m/v1/manifest.json")
+    server.Spool(tmp_path / "spool").put(body)  # accepted and acknowledged before a crash
+    seen = []
+    srv = serve(lambda p: seen.append(p) or server.OK)
+    _until(lambda: not srv.spool.waiting())
+    assert seen == [json.loads(body)]

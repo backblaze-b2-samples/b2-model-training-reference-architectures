@@ -97,7 +97,7 @@ Checkpoints and models live in their own buckets; see [checkpoint and resume](..
 |---|---|---|
 | PyTorch | `IterableDataset` that opens each shard with boto3 `get_object` and reads it as a stream; or fsspec `s3://` paths with `client_kwargs={"endpoint_url": ...}` | Split shards by rank and by `torch.utils.data.get_worker_info()` |
 | WebDataset | `webdataset.WebDataset` over fsspec URLs, or a `pipe:` command that runs an S3 client configured with the B2 endpoint | Same shard format as the sample |
-| Ray Data / Ray Train | `pyarrow.fs.S3FileSystem(endpoint_override="https://s3.<region>.backblazeb2.com", region=...)` passed as the filesystem to Ray Data readers | Ray handles worker parallelism |
+| Ray Train, Tune, and Data | `pyarrow.fs.S3FileSystem(endpoint_override="https://s3.<region>.backblazeb2.com", region=...)` passed as the filesystem to Ray Data readers | Ray handles worker parallelism |
 | TensorFlow | `tf.data` over `s3://` paths through tensorflow-io with `S3_ENDPOINT` set to the B2 endpoint | Use TFRecord shards |
 | Hugging Face Datasets | `storage_options={"key": ..., "secret": ..., "client_kwargs": {"endpoint_url": ...}}` | Good for text corpora in Parquet or JSONL |
 
@@ -128,7 +128,7 @@ Derive the endpoint from the bucket region and never hardcode it. Clients that d
 |---|---|---|---|
 | PyTorch | Data loading | boto3 or fsspec with the B2 endpoint | Source review; sample tests 2026-10-14 |
 | WebDataset | Shard format and loader | fsspec URLs or `pipe:` S3 client | Format used by the shared dataset |
-| Ray Data / Train | Parallel loading | `pyarrow.fs.S3FileSystem(endpoint_override=...)` | Source review 2026-05 |
+| Ray Train, Tune, and Data | Parallel loading | `pyarrow.fs.S3FileSystem(endpoint_override=...)` | Source review 2026-05 |
 | tensorflow-io | `tf.data` input | `S3_ENDPOINT` | Source review 2026-05 |
 | Hugging Face Datasets | Loading and preprocessing | fsspec `storage_options` | Documentation 2026-10-14 |
 

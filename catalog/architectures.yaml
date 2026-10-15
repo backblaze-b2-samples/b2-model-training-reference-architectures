@@ -43,8 +43,8 @@ architectures:
         url: https://github.com/webdataset/webdataset
         evidence: Format followed by the shared dataset and the existing WebDataset streaming sample; reviewed 2026-10-14
       - id: ray
-        name: Ray Train and Ray Data
-        role: Distributed training orchestration and parallel data loading
+        name: Ray Train, Tune, and Data
+        role: Distributed training, hyperparameter tuning, and parallel data loading
         support: s3-compatible-endpoint
         connection: pyarrow.fs.S3FileSystem with endpoint_override passed as storage_filesystem or to Ray Data readers
         url: https://docs.ray.io/en/latest/train/user-guides/persistent-storage.html
@@ -130,10 +130,10 @@ architectures:
         url: https://pytorch.org/docs/stable/distributed.checkpoint.html
         evidence: PyTorch distributed checkpoint source review recorded 2026-05 (FsspecWriter forwards storage options to fsspec); sample application tests 2026-10-14
       - id: ray
-        name: Ray Train and Ray Data
-        role: Distributed training orchestration and parallel data loading
+        name: Ray Train, Tune, and Data
+        role: Distributed training, hyperparameter tuning, and parallel data loading
         support: s3-compatible-endpoint
-        connection: RunConfig(storage_path=..., storage_filesystem=pyarrow.fs.S3FileSystem(endpoint_override=...)) persists checkpoints to B2
+        connection: RunConfig(storage_path=..., storage_filesystem=pyarrow.fs.S3FileSystem(endpoint_override=...)) persists Train and Tune checkpoints to B2
         url: https://docs.ray.io/en/latest/train/user-guides/persistent-storage.html
         evidence: Ray storage source review recorded 2026-05 (ray/train/_internal/storage.py); Ray Train notebook in the sample organization
       - id: lightning
@@ -167,7 +167,7 @@ architectures:
       - Never resume from a checkpoint whose manifest is missing or whose file checksums do not match
       - Treat checkpoints as sensitive when training data contains personal or licensed content
     compliance_considerations:
-      - Lock promoted models in governance mode by default; choose compliance mode only for a contractual or regulatory requirement
+      - Make retention an explicit promotion decision; lock production models in governance mode and choose compliance mode only for a contractual or regulatory requirement
       - Keep dataset pins and source checkpoint fingerprints in the model manifest
       - Set lifecycle periods for superseded checkpoints from cost and audit requirements
     links:
@@ -206,8 +206,8 @@ architectures:
         role: Experiment tracking, artifact store, and model registry
         support: native-b2
         connection: Native b2://<bucket>@s3.<region>.backblazeb2.com/<path> artifact URIs; s3:// with MLFLOW_S3_ENDPOINT_URL also works
-        url: https://github.com/mlflow/mlflow/blob/master/mlflow/store/artifact/b2_artifact_repo.py
-        evidence: MLflow source (mlflow/store/artifact/b2_artifact_repo.py, registered as the b2 scheme) reviewed 2026-10-14; sample application tests 2026-10-14
+        url: https://mlflow.org/docs/latest/self-hosting/architecture/artifact-store/
+        evidence: MLflow artifact store documentation (Backblaze B2 section) and source (mlflow/store/artifact/b2_artifact_repo.py) reviewed 2026-10-14; sample application tests 2026-10-14
       - id: wandb
         name: Weights & Biases
         role: Experiment tracking with reference artifacts in customer storage
@@ -357,8 +357,8 @@ architectures:
         role: ML pipeline framework with pluggable stacks
         support: native-b2
         connection: B2 artifact store flavor with a regional endpoint, plus the S3 flavor with a custom endpoint_url
-        url: https://github.com/zenml-io/zenml/tree/main/src/zenml/integrations/b2
-        evidence: ZenML b2 integration source review 2026-10-14 (src/zenml/integrations/b2)
+        url: https://sdkdocs.zenml.io/0.96.1/integration_code_docs/integrations-b2.html
+        evidence: ZenML 0.96.1 SDK documentation for the b2 integration and its source (src/zenml/integrations/b2) reviewed 2026-10-14
       - id: kubeflow-pipelines
         name: Kubeflow Pipelines
         role: Kubernetes-native ML pipelines

@@ -1,6 +1,7 @@
+import hashlib
 import json
 
-from conftest import BUCKET, event_body, model_manifest, publish, sign
+from conftest import BUCKET, WEIGHTS, event_body, model_manifest, publish, sign
 
 from mlflow_b2 import events, registry, storage
 
@@ -37,7 +38,7 @@ def test_registers_version_pointing_at_b2_prefix(s3, cfg, capsys):
     assert mv.tags["dataset.id"] == "synthetic-shapes@v1" and mv.tags["dataset.fingerprint"] == "b" * 64
     assert mv.tags["source.run_id"] == "run-0001" and mv.tags["source.step"] == "120"
     assert mv.tags["source.checkpoint_fingerprint"] == "a" * 64
-    assert mv.tags[registry.FINGERPRINT_TAG] == "c" * 64
+    assert mv.tags[registry.FINGERPRINT_TAG] == model_manifest()["fingerprint"]
 
 
 def test_replay_is_idempotent(s3, cfg, capsys):
@@ -46,7 +47,7 @@ def test_replay_is_idempotent(s3, cfg, capsys):
     rc, client = _handle(cfg, s3, key, key)
     assert rc == 0 and "skipped" in capsys.readouterr().out
     assert len(client.search_model_versions("name = 'shapes-classifier'")) == 1
-    publish(s3, model_manifest(version="v3", fingerprint="d" * 64))
+    publish(s3, model_manifest(version="v3", weights=b"other weights"), weights=b"other weights")
     _handle(cfg, s3, "models/shapes-classifier/v3/manifest.json")
     assert len(client.search_model_versions("name = 'shapes-classifier'")) == 2
 
@@ -73,6 +74,31 @@ def test_key_mismatch_and_missing_files_rejected(s3, cfg, capsys):
     s3.put_object(Bucket=BUCKET, Key="models/shapes-classifier/v4/manifest.json", Body=json.dumps(m))
     rc, _ = _handle(cfg, s3, "models/shapes-classifier/v4/manifest.json")
     assert rc == 2 and "model.pt" in capsys.readouterr().err
+    assert client.search_registered_models() == []
+
+
+def test_stale_fingerprint_rejected(s3, cfg, capsys):
+    """A copied fingerprint must not make a different model look already registered."""
+    publish(s3, model_manifest())
+    _, client = _handle(cfg, s3, "models/shapes-classifier/v2/manifest.json")
+    stale = model_manifest(version="v3", weights=b"other weights",
+                           fingerprint=model_manifest()["fingerprint"])
+    rc, _ = _handle(cfg, s3, publish(s3, stale, weights=b"other weights"))
+    assert rc == 2 and "fingerprint does not match" in capsys.readouterr().err
+    assert len(client.search_model_versions("name = 'shapes-classifier'")) == 1
+
+
+def test_changed_content_rejected(s3, cfg, capsys):
+    """Same size, different bytes: caught by the stored sha256, which a size check alone misses."""
+    key = publish(s3, model_manifest())
+    swapped = b"X" + WEIGHTS[1:]
+    s3.put_object(Bucket=BUCKET, Key="models/shapes-classifier/v2/model.pt", Body=swapped,
+                  Metadata={"sha256": hashlib.sha256(swapped).hexdigest()})
+    rc, client = _handle(cfg, s3, key)
+    assert rc == 2 and "sha256" in capsys.readouterr().err
+    s3.put_object(Bucket=BUCKET, Key="models/shapes-classifier/v2/model.pt", Body=WEIGHTS)
+    rc, _ = _handle(cfg, s3, key)
+    assert rc == 2 and "metadata missing" in capsys.readouterr().err
     assert client.search_registered_models() == []
 
 

@@ -1,6 +1,7 @@
 """MLflow tracking/registry setup, alias promotion and event-driven model registration."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,12 @@ FINGERPRINT_TAG = "manifest.fingerprint"
 
 class InvalidManifest(Exception):
     pass
+
+
+def fingerprint(files: list[dict]) -> str:
+    """Training run contract: sha256 over sorted "path:sha256" lines."""
+    lines = "\n".join(f"{f['path']}:{f['sha256']}" for f in sorted(files, key=lambda f: f["path"]))
+    return hashlib.sha256(lines.encode()).hexdigest()
 
 
 def configure(cfg: Config) -> MlflowClient:
@@ -47,12 +54,12 @@ def promote(client: MlflowClient, model: str, version: str, alias: str) -> None:
     client.set_registered_model_alias(model, alias, version)
 
 
-def version_with_fingerprint(client: MlflowClient, model: str, fingerprint: str) -> str | None:
+def version_with_fingerprint(client: MlflowClient, model: str, value: str) -> str | None:
     token = None
     while True:
         page = client.search_model_versions(f"name = '{model}'", max_results=200, page_token=token)
         for mv in page:
-            if mv.tags.get(FINGERPRINT_TAG) == fingerprint:
+            if mv.tags.get(FINGERPRINT_TAG) == value:
                 return mv.version
         token = page.token
         if not token:
@@ -70,9 +77,11 @@ def register_manifest(cfg: Config, client: MlflowClient, s3, key: str,
     errs = schemas.errors(m, "model-manifest", schema_dir)
     if not errs and (m["model"], m["version"]) != (model, version):
         errs.append("model/version do not match the object key")
+    if not errs and m["fingerprint"] != fingerprint(m["files"]):
+        errs.append("fingerprint does not match the listed files")
     prefix = f"models/{model}/{version}/"
     if not errs:
-        errs = storage.missing_files(s3, cfg.bucket, prefix, m["files"])
+        errs = storage.verify_files(s3, cfg.bucket, prefix, m["files"])
     if errs:
         raise InvalidManifest("; ".join(errs))
     existing = version_with_fingerprint(client, model, m["fingerprint"])

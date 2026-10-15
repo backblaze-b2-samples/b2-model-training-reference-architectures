@@ -48,8 +48,8 @@ def get_bytes(client, bucket: str, key: str) -> bytes:
     return obj["Body"].read()
 
 
-def missing_files(client, bucket: str, prefix: str, files: list[dict]) -> list[str]:
-    """Files listed in a manifest that are absent or a different size on B2."""
+def verify_files(client, bucket: str, prefix: str, files: list[dict]) -> list[str]:
+    """Files listed in a manifest that are absent on B2 or whose size or stored sha256 metadata differs."""
     errors = []
     for f in files:
         try:
@@ -59,4 +59,6 @@ def missing_files(client, bucket: str, prefix: str, files: list[dict]) -> list[s
             continue
         if head["ContentLength"] != f["size"]:
             errors.append(f"{f['path']}: size differs from manifest")
+        elif head.get("Metadata", {}).get("sha256") != f["sha256"]:
+            errors.append(f"{f['path']}: stored sha256 metadata missing or differs from manifest")
     return errors

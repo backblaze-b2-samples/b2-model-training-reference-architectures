@@ -1,21 +1,70 @@
-"""Webhook receiver: verify, enqueue, ack fast; a single worker registers models in order."""
+"""Webhook receiver: verify, persist to a spool, ack; a single worker registers models with retries."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import queue
 import sys
 import threading
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from . import events
 
 MAX_BODY = 1 << 20
+OK, RETRY, REJECTED = 0, 1, 2  # handler results, same as registry.handle_payload exit codes
 
 
-def make_server(secret: str, handle: Callable[[dict], object], host: str = "127.0.0.1",
-                port: int = 8080) -> ThreadingHTTPServer:
-    jobs: queue.Queue[bytes] = queue.Queue()
+class Spool:
+    """Accepted deliveries live in pending/ until processed; rejected or exhausted ones move to failed/.
+
+    Files are named by the body's sha256, so an at-least-once redelivery of the same body is stored once.
+    """
+
+    def __init__(self, root: Path):
+        self.pending, self.failed = Path(root) / "pending", Path(root) / "failed"
+        self.pending.mkdir(parents=True, exist_ok=True)
+        self.failed.mkdir(parents=True, exist_ok=True)
+
+    def put(self, body: bytes) -> Path:
+        path = self.pending / f"{hashlib.sha256(body).hexdigest()}.json"
+        tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+        with open(tmp, "wb") as f:
+            f.write(body)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        return path
+
+    def waiting(self) -> list[Path]:
+        found = []
+        for path in self.pending.glob("*.json"):
+            try:
+                found.append((path.stat().st_mtime, path))
+            except FileNotFoundError:  # processed by the worker while listing
+                pass
+        return [path for _, path in sorted(found)]
+
+    def fail(self, path: Path) -> None:
+        os.replace(path, self.failed / path.name)
+
+
+def make_server(secret: str, handle: Callable[[dict], int], host: str = "127.0.0.1", port: int = 8080,
+                *, spool_dir: str | Path = "event-spool", max_attempts: int = 5,
+                retry_delay: float = 2.0) -> ThreadingHTTPServer:
+    spool = Spool(Path(spool_dir))
+    jobs: queue.Queue[Path] = queue.Queue()
+    queued: set[Path] = set()
+    lock = threading.Lock()
+
+    def enqueue(path: Path) -> None:
+        with lock:
+            if path in queued:
+                return
+            queued.add(path)
+        jobs.put(path)
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 10
@@ -35,7 +84,11 @@ def make_server(secret: str, handle: Callable[[dict], object], host: str = "127.
                     return self._reply(400)
             except ValueError:
                 return self._reply(400)
-            jobs.put(body)
+            try:
+                path = spool.put(body)
+            except OSError:
+                return self._reply(503)  # not persisted, so let B2 redeliver
+            enqueue(path)
             self._reply(200)
 
         def _reply(self, code: int):
@@ -48,17 +101,41 @@ def make_server(secret: str, handle: Callable[[dict], object], host: str = "127.
         def log_message(self, fmt, *args):
             print(f"{self.command} {self.path} {args[1] if len(args) > 1 else ''}", file=sys.stderr)
 
+    attempts: dict[Path, int] = {}
+
+    def process(path: Path) -> None:
+        try:
+            result = handle(json.loads(path.read_bytes()))
+        except Exception as e:  # temporary B2 or MLflow failures are retried
+            print(f"error: event processing failed: {type(e).__name__}", file=sys.stderr)
+            result = RETRY
+        if result == OK:
+            path.unlink(missing_ok=True)
+        elif result == RETRY and attempts.get(path, 0) + 1 < max_attempts:
+            attempts[path] = attempts.get(path, 0) + 1
+            timer = threading.Timer(retry_delay * 2 ** (attempts[path] - 1), enqueue, [path])
+            timer.daemon = True
+            timer.start()
+            return
+        else:
+            spool.fail(path)
+            print(f"event {path.stem[:12]} moved to {spool.failed}", file=sys.stderr)
+        attempts.pop(path, None)
+
     def work():
         while True:
-            body = jobs.get()
+            path = jobs.get()
+            with lock:
+                queued.discard(path)
             try:
-                handle(json.loads(body))
-            except Exception as e:  # keep the worker alive; delivery is at least once
-                print(f"error: event processing failed: {type(e).__name__}", file=sys.stderr)
+                if path.exists():
+                    process(path)
             finally:
                 jobs.task_done()
 
     server = ThreadingHTTPServer((host, port), Handler)
-    server.jobs = jobs
+    server.jobs, server.spool = jobs, spool
+    for path in spool.waiting():  # deliveries accepted before a restart
+        enqueue(path)
     threading.Thread(target=work, name="b2-event-worker", daemon=True).start()
     return server

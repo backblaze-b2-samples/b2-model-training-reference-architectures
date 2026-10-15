@@ -17,7 +17,7 @@ For changing service behavior, limits, and setup steps, use the canonical [Backb
 - Write `manifest.json` last under every dataset, checkpoint, and model prefix. A prefix without a manifest is incomplete: never train on it, resume from it, or register it.
 - Pin each run to `<dataset>@<version>` plus the fingerprint; stop on mismatch; copy the pin into every checkpoint, model, and tracking record.
 - Checkpoints: stage locally, upload in parallel with multipart, write the manifest after all ranks finish, and resume from the newest step whose files match their checksums.
-- Promote by server-side copy (multipart copy above 5 GB) into an Object Lock models bucket in governance mode. Compliance mode and enabling Object Lock are irreversible.
+- Promote by server-side copy (multipart copy above 5 GB) into an Object Lock models bucket in governance mode. Make retention an explicit promotion decision with a policy-set duration; unlocked promotion is an explicit opt-out, not a default. Compliance mode and enabling Object Lock are irreversible.
 - Prune checkpoints by deleting, and purge hidden versions with `daysFromHidingToDeleting`. Never apply an age-based hide rule to active runs.
 - Events: webhook, at least once; verify `X-Bz-Event-Notification-Signature`, acknowledge fast, deduplicate, and filter on manifest keys.
 - Streaming: WebDataset-style tar shards of hundreds of MB to a few GB; at least `world_size × workers` shards per split; cache immutable shards on local NVMe keyed by SHA-256.

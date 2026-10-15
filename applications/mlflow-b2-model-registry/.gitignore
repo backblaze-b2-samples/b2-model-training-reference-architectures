@@ -5,3 +5,4 @@ __pycache__/
 mlflow.db
 mlruns/
 mlartifacts/
+event-spool/

@@ -86,6 +86,12 @@ def cmd_prune(a, cfg) -> int:
     return 0
 
 
+def _positive(value: str) -> int:
+    if not value.isdigit() or int(value) < 1:
+        raise argparse.ArgumentTypeError("must be a whole number of days, at least 1")
+    return int(value)
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="b2-train")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -109,8 +115,11 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--run-id", required=True)
     r.add_argument("--step", type=int, default=None, help="default: latest complete checkpoint")
     r.add_argument("--model", required=True); r.add_argument("--model-version", required=True)
-    r.add_argument("--lock-days", type=int, default=None,
-                   help="GOVERNANCE retention; bucket must have Object Lock enabled")
+    retention = r.add_mutually_exclusive_group(required=True)  # promoted models are locked unless opted out
+    retention.add_argument("--lock-days", type=_positive, default=None,
+                           help="GOVERNANCE retention; bucket must have Object Lock enabled")
+    retention.add_argument("--no-lock", action="store_true",
+                           help="no retention; for demo buckets without Object Lock")
     k = sub.add_parser("prune"); k.set_defaults(fn=cmd_prune)
     k.add_argument("--run-id", required=True); k.add_argument("--keep", type=int, required=True)
     return p

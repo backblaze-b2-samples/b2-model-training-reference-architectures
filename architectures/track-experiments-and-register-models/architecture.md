@@ -59,8 +59,8 @@ The plain S3 path also works: `s3://<bucket>/<path>` with `MLFLOW_S3_ENDPOINT_UR
 
 1. A training job promotes a model and writes `models/<model>/<version>/manifest.json` last ([schema](../../schemas/model-manifest.schema.json)).
 2. A B2 event notification rule on `models/` sends `b2:ObjectCreated:*` to the receiver ([example](../../examples/event-notifications.json)).
-3. The receiver verifies `X-Bz-Event-Notification-Signature` (`v1=` + HMAC-SHA256 of the raw body), responds immediately, and queues the work.
-4. A worker reads the manifest, validates it against the schema, and creates a registry version whose source is the `b2://` URI of the model prefix. It tags the version with the dataset pin, source run and step, and manifest fingerprint.
+3. The receiver verifies `X-Bz-Event-Notification-Signature` (`v1=` + HMAC-SHA256 of the raw body), writes the delivery to durable storage, and only then responds 200. B2 retries a delivery that is not acknowledged in time, but it cannot see failures that happen after the 200. So an accepted event must survive a crash, and the worker must retry temporary failures and keep permanently failed events for inspection.
+4. A worker reads the manifest, validates it against the schema, recomputes its fingerprint, checks each object's stored SHA-256, and creates a registry version whose source is the `b2://` URI of the model prefix. It tags the version with the dataset pin, source run and step, and manifest fingerprint.
 5. Deliveries are at least once, so the worker skips a manifest fingerprint that is already registered.
 
 Filter on the manifest key, not on every object: a model with many files would otherwise trigger one registration attempt per file.

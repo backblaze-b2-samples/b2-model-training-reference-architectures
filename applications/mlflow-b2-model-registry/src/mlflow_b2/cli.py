@@ -71,8 +71,8 @@ def cmd_serve_events(a, cfg) -> int:
     client, s3 = registry.configure(cfg), storage.make_client(cfg)
     srv = server.make_server(
         cfg.event_secret, lambda p: registry.handle_payload(cfg, client, s3, p, a.schema_dir),
-        a.host, a.port)
-    print(f"listening on http://{a.host}:{srv.server_port}/ (Ctrl-C to stop)")
+        a.host, a.port, spool_dir=a.spool_dir, max_attempts=a.max_attempts)
+    print(f"listening on http://{a.host}:{srv.server_port}/ (Ctrl-C to stop); spool {a.spool_dir}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -101,6 +101,9 @@ def parser() -> argparse.ArgumentParser:
     h.add_argument("--signature", required=True, help=f"{events.SIGNATURE_HEADER} header value")
     s = sub.add_parser("serve-events"); s.set_defaults(fn=cmd_serve_events)
     s.add_argument("--host", default="127.0.0.1"); s.add_argument("--port", type=int, default=8080)
+    s.add_argument("--spool-dir", default="event-spool",
+                   help="accepted deliveries are written here before the 200; keep it on durable disk")
+    s.add_argument("--max-attempts", type=int, default=5)
     for sp in (t, h, s):
         sp.add_argument("--schema-dir", default=str(schemas.SCHEMA_DIR))
     return p

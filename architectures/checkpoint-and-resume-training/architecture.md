@@ -69,7 +69,7 @@ DCP saves a sharded checkpoint plus metadata that describes the global tensors, 
 ## Promotion and pruning
 
 - **Promote:** server-side copy from `checkpoints/` to `models/<model>/<version>/`, then write the [model manifest](../../schemas/model-manifest.schema.json) last, with the source run, step, checkpoint fingerprint, and dataset pin. Copy, rather than reference, so that pruning and lifecycle rules on checkpoints can never delete a model. A single S3 CopyObject handles up to 5 GB; larger objects need a multipart copy, which boto3's managed `copy` does automatically.
-- **Lock:** set governance-mode retention on promoted objects. Runtime keys lack `bypassGovernance`, so a leaked training key cannot delete a model. An administrator can still correct a mistake. Compliance mode cannot be shortened, even by the account owner. Use it only for a contractual or regulatory requirement.
+- **Lock:** set governance-mode retention on promoted objects. The sample makes this a required choice (`--lock-days N` or an explicit `--no-lock` for demo buckets), so a model is never left unlocked by default; the duration is a deployment policy, not a code default. Runtime keys lack `bypassGovernance`, so a leaked training key cannot delete a model. An administrator can still correct a mistake. Compliance mode cannot be shortened, even by the account owner. Use it only for a contractual or regulatory requirement.
 - **Prune:** keep the newest K complete checkpoints per run, delete older ones, and delete incomplete checkpoints older than the newest complete one. Deleting a file in a versioned B2 bucket hides it, and a lifecycle rule with `daysFromHidingToDeleting` purges it later. That gives you a short undo window.
 
 ## Boundaries
@@ -105,7 +105,7 @@ DCP saves a sharded checkpoint plus metadata that describes the global tensors, 
 | Framework | How it checkpoints to B2 |
 |---|---|
 | PyTorch DCP | `dcp.save` to local staging and upload, as in the sample; or `FsspecWriter("s3://bucket/checkpoints/run/step", ...)` with s3fs configured for the B2 endpoint to write directly |
-| Ray Train | `RunConfig(storage_path="bucket/run", storage_filesystem=pyarrow.fs.S3FileSystem(endpoint_override=...))`; Ray uploads each reported checkpoint |
+| Ray Train and Tune | `RunConfig(storage_path="bucket/run", storage_filesystem=pyarrow.fs.S3FileSystem(endpoint_override=...))`; Ray uploads each reported checkpoint |
 | PyTorch Lightning | `ModelCheckpoint(dirpath="s3://...")` through fsspec with storage options for the B2 endpoint. This is a candidate: test it before adopting |
 
 Writing directly to object storage removes the staging disk but makes training wait on the upload, unless the writer is asynchronous. Staging locally is the default because it isolates training from network stalls.
@@ -137,7 +137,7 @@ A server-side copy between buckets needs read access to the source and write acc
 | Tool | Role | Connection | Evidence |
 |---|---|---|---|
 | PyTorch DCP | Sharded checkpoints | Local staging plus upload, or `FsspecWriter` with s3fs | Source review; sample tests 2026-10-14 |
-| Ray Train | Checkpoint persistence | `storage_filesystem` with `endpoint_override` | Source review 2026-05 |
+| Ray Train and Tune | Checkpoint persistence | `storage_filesystem` with `endpoint_override` | Source review 2026-05 |
 | PyTorch Lightning | Checkpoint callbacks | fsspec paths (candidate) | Documentation 2026-10-14 |
 
 ## Sample application

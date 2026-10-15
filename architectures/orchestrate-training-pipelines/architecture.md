@@ -39,11 +39,11 @@ Every orchestrator keeps its metadata in its own database. Only artifacts and ch
 ## Retraining trigger
 
 1. Notification rule on the datasets bucket, prefix `datasets/`, event types `b2:ObjectCreated:Upload` and `b2:ObjectCreated:MultipartUpload` ([example](../../examples/event-notifications-retrain.json)).
-2. The receiver verifies `X-Bz-Event-Notification-Signature`, responds immediately, and keeps only keys ending in `/manifest.json`.
+2. The receiver verifies `X-Bz-Event-Notification-Signature`, persists the delivery, responds 200, and keeps only keys ending in `/manifest.json`. Work that fails after the acknowledgement is retried from the persisted copy, because B2 will not redeliver it.
 3. It deduplicates on the manifest key and fingerprint, because delivery is at least once.
 4. It calls the orchestrator with the dataset id and fingerprint as run parameters, so the pin travels with the run.
 
-A generic fan-out receiver is available as the [B2 Event Broker](https://github.com/backblaze-b2-samples/b2-event-broker) sample. The [MLflow sample](../../applications/mlflow-b2-model-registry/README.md) shows signature verification, fast acknowledgement, and idempotent processing in a small receiver.
+A generic fan-out receiver is available as the [B2 Event Broker](https://github.com/backblaze-b2-samples/b2-event-broker) sample. The [MLflow sample](../../applications/mlflow-b2-model-registry/README.md) shows signature verification, persistence before acknowledgement, retries, and idempotent processing in a small receiver.
 
 ## B2 zones
 
