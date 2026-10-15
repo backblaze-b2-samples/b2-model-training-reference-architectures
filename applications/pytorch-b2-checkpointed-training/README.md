@@ -64,7 +64,7 @@ Manifests follow the repository's [shard](../../schemas/shard-manifest.schema.js
 | `promote` | `listFiles,readFiles` on checkpoints; `writeFiles` on models; add `writeFileRetentions` and `readFileRetentions` for `--lock-days` (Object-Lock-enabled bucket; retention is a real commitment; reading it back is how promotion verifies the lock) | `checkpoints/`, `models/` |
 | `prune` | `listFiles,writeFiles` (on B2 a delete by name needs `writeFiles` and hides the file; `deleteFiles` is only for deleting a specific version, which `prune` never does) | `checkpoints/` |
 
-Use separate keys per job rather than one key with every capability; a training job should not be able to delete checkpoints or set retention. A B2 key carries at most one name prefix, and this sample reads one key per process, so `train` and `promote` need a key scoped to the bucket without a name prefix (`publish-dataset` and `prune` can use `datasets/` and `checkpoints/` prefixes). With separate buckets in production, give each stage its own bucket-scoped key.
+Use separate keys per job rather than one key with every capability; a training job should not be able to permanently delete checkpoint versions (`deleteFiles`) or set retention. Its `writeFiles` can still hide files by name, so the undo window for a hidden checkpoint is whatever the bucket's lifecycle rule allows. A B2 key carries at most one name prefix, and this sample reads one key per process, so `train` and `promote` need a key scoped to the bucket without a name prefix (`publish-dataset` and `prune` can use `datasets/` and `checkpoints/` prefixes). With separate buckets in production, give each stage its own bucket-scoped key.
 
 ## Container
 
